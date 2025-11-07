@@ -1,0 +1,28 @@
+server:
+  port: 8080
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/yolo_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    driverClassName: com.mysql.cj.jdbc.Driver
+    username: ${DB_USER:root}
+    password: ${DB_PASS:pass123}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+ai:
+  yolo:
+    url-detect-file: http://127.0.0.1:8000/detect/file
+    url-detect-url: http://127.0.0.1:8000/detect/url
+  llm:
+    provider: kimi
+    kimi:
+      api-url: https://api.moonshot.cn/v1/chat/completions
+      api-key: ${KIMI_API_KEY:change-me}
+      model: moonshot-v1-8k
+    qwen:
+      api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+      api-key: ${QWEN_API_KEY:change-me}
+      model: qwen-plus
+
+

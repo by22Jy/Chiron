@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# Java / Maven
+target/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+*.DS_Store
+
+

@@ -1,48 +1,45 @@
 package com.example.aiorchestrator.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
-@Entity
-@Table(name = "mappings")
+@TableName("mappings")
 public class Mapping {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user; // 可为 null → 所有用户
+    @TableField("user_id")
+    private Long userId; // null → 所有用户
 
-    @ManyToOne
-    @JoinColumn(name = "application_id")
-    private ApplicationEntity application; // 可为 null → 所有应用
+    @TableField("application_id")
+    private Long applicationId; // null → 所有应用
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "gesture_id")
-    private Gesture gesture;
+    @TableField("gesture_id")
+    private Long gestureId;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "action_id")
-    private ActionEntity action;
+    @TableField("action_id")
+    private Long actionId;
 
-    private Integer priority = 0;
+    private Integer priority;
 
-    private Boolean enabled = Boolean.TRUE;
+    private Boolean enabled;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 
-    public ApplicationEntity getApplication() { return application; }
-    public void setApplication(ApplicationEntity application) { this.application = application; }
+    public Long getApplicationId() { return applicationId; }
+    public void setApplicationId(Long applicationId) { this.applicationId = applicationId; }
 
-    public Gesture getGesture() { return gesture; }
-    public void setGesture(Gesture gesture) { this.gesture = gesture; }
+    public Long getGestureId() { return gestureId; }
+    public void setGestureId(Long gestureId) { this.gestureId = gestureId; }
 
-    public ActionEntity getAction() { return action; }
-    public void setAction(ActionEntity action) { this.action = action; }
+    public Long getActionId() { return actionId; }
+    public void setActionId(Long actionId) { this.actionId = actionId; }
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }

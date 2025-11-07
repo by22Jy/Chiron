@@ -6,10 +6,11 @@ spring:
     driverClassName: com.mysql.cj.jdbc.Driver
     username: ${DB_USER:root}
     password: ${DB_PASS:pass123}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  type-aliases-package: com.example.aiorchestrator.domain
 ai:
   yolo:
     url-detect-file: http://127.0.0.1:8000/detect/file

@@ -1,22 +1,23 @@
 package com.example.aiorchestrator.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
-@Entity
-@Table(name = "gestures")
+@TableName("gestures")
 public class Gesture {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @TableField("code")
     private String code; // 如 swipe_left, pinch_close
 
     private String name;
 
     private String description;
 
-    @Column(name = "gesture_type")
+    @TableField("gesture_type")
     private String type; // static / dynamic / pose
 
     public Long getId() { return id; }

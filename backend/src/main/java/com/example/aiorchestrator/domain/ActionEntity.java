@@ -1,26 +1,27 @@
 package com.example.aiorchestrator.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
-@Entity
-@Table(name = "actions")
+@TableName("actions")
 public class ActionEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Column(name = "os_type", nullable = false)
+    @TableField("os_type")
     private String osType; // windows / macos / linux / any
 
-    @Column(name = "action_type", nullable = false)
+    @TableField("action_type")
     private String type; // hotkey, keypress, mousemove, webhook
 
-    @Column(name = "action_value", nullable = false)
+    @TableField("action_value")
     private String value; // 如 "ctrl+-"、"command+option+left"
 
     private String description;
 
-    @Column(name = "payload_json")
+    @TableField("payload_json")
     private String payloadJson; // 可选 JSON（宏脚本等）
 
     public Long getId() { return id; }

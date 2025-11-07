@@ -1,18 +1,19 @@
 package com.example.aiorchestrator.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
-@Entity
-@Table(name = "applications")
+@TableName("applications")
 public class ApplicationEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @TableField(value = "code")
     private String code; // 如 chrome.exe
 
-    @Column(nullable = false)
+    @TableField(value = "name")
     private String name; // 展示名称
 
     private String description;

@@ -43,10 +43,31 @@ function Start-Frontend {
     Write-Host 'Frontend starting on http://127.0.0.1:5173'
 }
 
+function Start-Agent {
+    $agentDir = Join-Path $root 'agent'
+    if (-not (Test-Path $agentDir)) {
+        Write-Host 'Agent directory not found, skip agent startup.'
+        return
+    }
+    $venvPython = Join-Path $agentDir '.venv/Scripts/python.exe'
+    $venvPip    = Join-Path $agentDir '.venv/Scripts/pip.exe'
+    if (-not (Test-Path $venvPython)) {
+        Write-Host 'Creating Python venv for Agent...'
+        & python -m venv (Join-Path $agentDir '.venv')
+    }
+    Write-Host 'Installing Agent requirements (if needed)...'
+    & $venvPip install -r (Join-Path $agentDir 'requirements.txt') | Out-Null
+
+    $cmd = "`"$venvPython`" main.py --watch"
+    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-Command","cd `"$agentDir`"; $cmd" -WindowStyle Normal | Out-Null
+    Write-Host 'Agent interactive console started (watch mode).'
+}
+
 Write-Host '=== Starting services ==='
 Start-AIService
 Start-Backend
 Start-Frontend
+Start-Agent
 Write-Host 'All services launched in separate PowerShell windows.'
 
 

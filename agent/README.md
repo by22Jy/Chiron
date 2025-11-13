@@ -1,44 +1,51 @@
-# Agent (手势控制代理)
+﻿# YOLO-LLM Gesture Control Agent
 
-本目录用于“本地控制代理”，它负责：
+## 概述
 
-1. 从中台拉取手势 → 动作配置 (`GET /api/config`)
-2. 在本地执行动作（例如触发热键）
-3. 上报执行日志 (`POST /api/audit/log`)
-4. 后续可扩展：调用 `/api/event`、接入 MediaPipe/YOLO 手势识别
+这是YOLO-LLM项目的手势控制Agent，能够通过摄像头实时识别手势并执行相应的动作。
 
-## 准备
+## 功能特性
 
-```powershell
-cd agent
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+### 手势识别
+支持以下8种手势（基于MediaPipe）:
+- POINT_UP - 食指向上指
+- POINT_INDEX - 食指指向前方
+- THUMBS_UP - 竖起大拇指
+- THUMBS_DOWN - 大拇指向下
+- OPEN_PALM - 张开手掌
+- CLOSED_FIST - 握拳
+- VICTORY - V字手势
+- OK_SIGN - OK手势
+
+### 动作执行
+支持7种动作类型:
+- hotkey: 键盘快捷键 (ctrl+c, alt+tab等)
+- mouse: 鼠标移动到指定坐标
+- click: 鼠标点击 (左键/右键/中键)
+- scroll: 鼠标滚轮 (正数向下/负数向上)
+- text: 自动输入文本
+- window: 窗口操作 (maximize/minimize/close/switch)
+- system: 系统操作 (volume_up/down/mute/screenshot)
+
+## 使用方法
+
+### 1. 安装依赖
 pip install -r requirements.txt
-```
 
-编辑 `config.yaml`，配置后端地址、用户名、应用、操作系统等信息。
+### 2. 运行模式
+# 实时手势检测 (默认)
+python main.py --realtime
 
-## 运行
+# 后台守护模式
+python main.py --daemon
 
-*同步配置并进入交互模式*：
-
-```powershell
+# 交互式测试模式
 python main.py --watch
-```
 
-之后可以在终端输入手势编码（如 `swipe_left`），代理会查找配置中的动作并执行，同时把执行日志发回后端。
+# 单次执行手势
+python main.py --gesture THUMBS_UP
 
-*仅同步配置*：
+# 查看支持的动作类型
+python main.py --actions
 
-```powershell
-python main.py --sync
-```
-
-## TODO
-
-- 接入真实的手势识别（MediaPipe Hands / YOLO Pose）
-- 支持 WebSocket/长轮询方式的配置热更新
-- 增强动作执行器（宏、脚本、Webhook）
-- 接入 `/api/event` 以触发智能编排
-
-
+详细配置请参考 config.yaml 文件。

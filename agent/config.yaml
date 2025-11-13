@@ -1,10 +1,18 @@
-backend:
-  base_url: "http://127.0.0.1:8080"
-  username: "admin"
-  application: "chrome.exe"
-  os: "windows"
+﻿backend:
+  base_url: 'http://127.0.0.1:8080'
+  username: 'admin'
+  application: 'chrome.exe'
+  os: 'windows'
 
 agent:
-  source: "python-agent@dev"
-  poll_interval: 60   # seconds, 用于后续热更新（暂未实现）
+  source: 'python-agent@dev'
+  poll_interval: 60   # seconds, 用于配置热更新
 
+video:
+  camera_id: 2         # 摄像头设备ID (1可能更适合内置摄像头)
+  width: 640          # 视频宽度
+  height: 480         # 视频高度
+  fps: 30             # 帧率
+  show_preview: true  # 是否显示预览窗口
+  flip_horizontal: true  # 水平翻转摄像头图像
+  detection_interval: 0.1  # 手势检测间隔(秒)

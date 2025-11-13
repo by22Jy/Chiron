@@ -9,7 +9,7 @@ agent:
   poll_interval: 60   # seconds, 用于配置热更新
 
 video:
-  camera_id: 2         # 摄像头设备ID (1可能更适合内置摄像头)
+  camera_id: 0         # 摄像头设备ID (尝试0或1，0通常是默认摄像头)
   width: 640          # 视频宽度
   height: 480         # 视频高度
   fps: 30             # 帧率

@@ -1,0 +1,66 @@
+# 本地手势映射配置
+# 当后端没有配置映射时使用这些默认映射
+
+local_mappings:
+  # 静态手势映射
+  THUMBS_UP:
+    type: "hotkey"
+    value: "ctrl+tab"
+    description: "👍 点赞 - 切换到下一个标签页"
+
+  THUMBS_DOWN:
+    type: "hotkey"
+    value: "ctrl+shift+tab"
+    description: "👎 点踩 - 切换到上一个标签页"
+
+  POINT_UP:
+    type: "mouse"
+    value: "scroll_up"
+    description: "☝️ 指向上 - 向上滚动"
+
+  POINT_INDEX:
+    type: "mouse"
+    value: "click"
+    description: "👉 食指 - 鼠标左键点击"
+
+  VICTORY:
+    type: "hotkey"
+    value: "ctrl+r"
+    description: "✌️ 胜利 - 刷新页面"
+
+  OK_SIGN:
+    type: "hotkey"
+    value: "enter"
+    description: "👌 OK - 确认/回车"
+
+  OPEN_PALM:
+    type: "hotkey"
+    value: "esc"
+    description: "✋ 张开手掌 - ESC键"
+
+  CLOSED_FIST:
+    type: "system"
+    value: "volume_mute"
+    description: "✊ 握拳 - 静音"
+
+# 显示说明
+display_info:
+  instructions: |
+    🎯 YOLO-LLM 手势控制说明
+
+    当前使用本地手势映射配置：
+
+    👍 THUMBS_UP     -> Ctrl+Tab (切换标签)
+    👎 THUMBS_DOWN   -> Ctrl+Shift+Tab (返回标签)
+    ☝️ POINT_UP      -> 鼠标向上滚动
+    👉 POINT_INDEX   -> 鼠标左键点击
+    ✌️ VICTORY       -> Ctrl+R (刷新页面)
+    👌 OK_SIGN       -> Enter (确认)
+    ✋ OPEN_PALM      -> ESC (取消)
+    ✊ CLOSED_FIST    -> 静音
+
+    提示：
+    - 手势需要保持1-2秒才能被识别
+    - 确保手部光线充足
+    - 手势要清晰标准
+    - 按 'q' 键退出程序

@@ -101,9 +101,10 @@ class GestureAgent:
             raise
     
     def perform_action(self, gesture_code: str) -> bool:
+        logging.info('🎯 检测到手势: %s', gesture_code)  # 显示所有检测到的手势
         action = self.mapping.get(gesture_code)
         if not action:
-            logging.warning('Gesture %s not found in mapping', gesture_code)
+            logging.warning('No action mapping for gesture: %s', gesture_code)
             return False
     
         action_type = (action.get('type') or '').lower()

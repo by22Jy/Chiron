@@ -5,6 +5,8 @@ import logging
 from typing import List, Optional, Tuple, Dict, Any
 from dataclasses import dataclass
 import time
+import math
+from collections import deque
 
 
 @dataclass
@@ -24,18 +26,24 @@ class MediaPipeGestureDetector:
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
-        
+
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=max_hands,
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence
         )
-        
+
+        # 动态手势检测器
+        self.hand_history = deque(maxlen=20)
+        self.min_swipe_distance = 0.1
+        self.last_dynamic_gesture_time = 0
+        self.dynamic_gesture_cooldown = 0.5
+
         self.last_gesture_time = 0
         self.gesture_cooldown = 1.0  # seconds between gestures
-        
-        logging.info('MediaPipe gesture detector initialized')
+
+        logging.info('MediaPipe gesture detector initialized with dynamic gesture support')
     
     def detect_hands(self, image: np.ndarray) -> Optional[List[GestureResult]]:
         if image is None:
@@ -61,9 +69,17 @@ class MediaPipeGestureDetector:
             y_coords = [int(lm.y * h) for lm in hand_landmarks.landmark]
             bbox = (min(x_coords), min(y_coords), max(x_coords) - min(x_coords), max(y_coords) - min(y_coords))
             
-            # Recognize gesture
-            gesture_code, confidence = self._recognize_gesture(landmarks)
-            
+            # Add hand position to dynamic gesture tracking
+            self._update_hand_history(landmarks, current_time)
+
+            # Try to recognize dynamic gesture first (higher priority)
+            dynamic_gesture = self._recognize_dynamic_gesture()
+            if dynamic_gesture:
+                gesture_code, confidence = dynamic_gesture, 0.85
+            else:
+                # Fall back to static gesture recognition
+                gesture_code, confidence = self._recognize_gesture(landmarks)
+
             if gesture_code and confidence > 0.6:
                 # Check cooldown to avoid repeated gestures
                 if current_time - self.last_gesture_time > self.gesture_cooldown:
@@ -184,5 +200,59 @@ class MediaPipeGestureDetector:
             self.close()
         except:
             pass
+
+    def _update_hand_history(self, landmarks: List[Tuple[float, float, float]], timestamp: float):
+        """更新手部历史轨迹"""
+        # 计算手心位置作为追踪点
+        palm_indices = [0, 1, 5, 9, 13, 17]  # 手腕 + 各手指根部
+        palm_x = sum(landmarks[i][0] for i in palm_indices) / len(palm_indices)
+        palm_y = sum(landmarks[i][1] for i in palm_indices) / len(palm_indices)
+
+        self.hand_history.append((palm_x, palm_y, timestamp))
+
+    def _recognize_dynamic_gesture(self) -> Optional[str]:
+        """识别动态手势"""
+        current_time = time.time()
+
+        # 手势冷却
+        if current_time - self.last_dynamic_gesture_time < self.dynamic_gesture_cooldown:
+            return None
+
+        if len(self.hand_history) < 10:
+            return None  # 轨迹数据不足
+
+        # 分析轨迹
+        points = list(self.hand_history)
+        start_pos = points[0]
+        end_pos = points[-1]
+
+        # 计算位移
+        dx = end_pos[0] - start_pos[0]
+        dy = end_pos[1] - start_pos[1]
+        distance = math.sqrt(dx**2 + dy**2)
+
+        # 检查最小距离
+        if distance < self.min_swipe_distance:
+            return None
+
+        # 计算主要方向
+        if abs(dx) > abs(dy):  # 水平主导
+            if dx > 0:
+                self.last_dynamic_gesture_time = current_time
+                self.hand_history.clear()  # 清空历史，准备下一次手势
+                return "SWIPE_RIGHT"
+            else:
+                self.last_dynamic_gesture_time = current_time
+                self.hand_history.clear()
+                return "SWIPE_LEFT"
+        else:  # 垂直主导
+            if dy > 0:
+                self.last_dynamic_gesture_time = current_time
+                self.hand_history.clear()
+                return "SWIPE_DOWN"
+            else:
+                self.last_dynamic_gesture_time = current_time
+                self.hand_history.clear()
+                return "SWIPE_UP"
 
 

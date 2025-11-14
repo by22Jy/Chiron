@@ -64,7 +64,7 @@ class VideoProcessor:
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
             self.cap.set(cv2.CAP_PROP_FPS, self.config.fps)
             
-            # Initialize gesture detector
+            # Initialize gesture detector (现在支持动态手势)
             self.detector = MediaPipeGestureDetector()
             
             logging.info('Video processor initialized: %dx%d @ %dfps', self.config.width, self.config.height, self.config.fps)

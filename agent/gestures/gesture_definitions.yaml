@@ -1,0 +1,179 @@
+# 手势定义配置文件
+# 支持静态手势和动态手势的配置化定义
+
+static_gestures:
+  # 基础手势
+  POINT_UP:
+    name: "指向上"
+    confidence: 0.9
+    fingers:
+      thumb: false
+      index: true
+      middle: false
+      ring: false
+      pinky: false
+    description: "食指指向上方，其他手指弯曲"
+
+  THUMBS_UP:
+    name: "👍 点赞"
+    confidence: 0.9
+    fingers:
+      thumb: true
+      index: false
+      middle: false
+      ring: false
+      pinky: false
+    description: "大拇指向上，其他手指弯曲"
+
+  THUMBS_DOWN:
+    name: "👎 点踩"
+    confidence: 0.9
+    fingers:
+      thumb: false
+      index: false
+      middle: false
+      ring: false
+      pinky: false
+    description: "大拇指向下，其他手指弯曲"
+
+  VICTORY:
+    name: "✌️ 胜利"
+    confidence: 0.8
+    fingers:
+      thumb: false
+      index: true
+      middle: true
+      ring: false
+      pinky: false
+    description: "食指和中指呈V字形"
+
+  OK_SIGN:
+    name: "👌 OK"
+    confidence: 0.8
+    description: "拇指和食指形成圆圈（需要特殊检测）"
+
+  OPEN_PALM:
+    name: "✋ 张开手掌"
+    confidence: 0.8
+    fingers:
+      thumb: true
+      index: true
+      middle: true
+      ring: true
+      pinky: true
+    description: "五指全部张开"
+
+  CLOSED_FIST:
+    name: "✊ 握拳"
+    confidence: 0.9
+    fingers:
+      thumb: false
+      index: false
+      middle: false
+      ring: false
+      pinky: false
+    description: "五指全部弯曲成拳"
+
+  POINT_INDEX:
+    name: "👉 指向前"
+    confidence: 0.9
+    fingers:
+      thumb: false
+      index: true
+      middle: false
+      ring: false
+      pinky: false
+    description: "食指指向前方"
+
+  # 自定义手势示例
+  ROCK_SIGN:
+    name: "🤘 摇滚"
+    confidence: 0.8
+    fingers:
+      thumb: true
+      index: false
+      middle: true
+      ring: false
+      pinky: false
+    description: "拇指和食指伸直，其他弯曲"
+
+  CALL_ME:
+    name: "🤙 打电话"
+    confidence: 0.8
+    fingers:
+      thumb: false
+      index: false
+      middle: false
+      ring: false
+      pinky: true
+    description: "小拇指伸直，像打电话手势"
+
+dynamic_gestures:
+  # 水平滑动
+  SWIPE_LEFT:
+    name: "← 左滑"
+    confidence: 0.8
+    min_distance: 0.1
+    direction: "horizontal"
+    sign: "negative"
+    description: "手部向左滑动，用于后退或切换到上一项"
+
+  SWIPE_RIGHT:
+    name: "→ 右滑"
+    confidence: 0.8
+    min_distance: 0.1
+    direction: "horizontal"
+    sign: "positive"
+    description: "手部向右滑动，用于前进或切换到下一项"
+
+  # 垂直滑动
+  SWIPE_UP:
+    name: "↑ 上滑"
+    confidence: 0.8
+    min_distance: 0.1
+    direction: "vertical"
+    sign: "negative"
+    description: "手部向上滑动，用于向上滚动或展开"
+
+  SWIPE_DOWN:
+    name: "↓ 下滑"
+    confidence: 0.8
+    min_distance: 0.1
+    direction: "vertical"
+    sign: "positive"
+    description: "手部向下滑动，用于向下滚动或收起"
+
+  # 复杂手势示例
+  CIRCLE_CLOCKWISE:
+    name: "↻ 顺时针画圈"
+    confidence: 0.7
+    description: "手部顺时针画圈，用于刷新或重载"
+
+  CIRCLE_COUNTERCLOCKWISE:
+    name: "↺ 逆时针画圈"
+    confidence: 0.7
+    description: "手部逆时针画圈，用于撤销操作"
+
+  PINCH_ZOOM_IN:
+    name: "🔍 放大（捏合）"
+    confidence: 0.7
+    description: "双手向内捏合，用于放大视图"
+
+  PINCH_ZOOM_OUT:
+    name: "🔍 缩小（展开）"
+    confidence: 0.7
+    description: "双手向外展开，用于缩小视图"
+
+# 配置说明:
+# static_gestures (静态手势):
+#   - fingers: 手指状态配置
+#     - true: 手指伸直
+#     - false: 手指弯曲
+#     - null: 不关心该手指状态
+#
+# dynamic_gestures (动态手势):
+#   - min_distance: 最小移动距离
+#   - direction: 主要方向 ("horizontal", "vertical", "diagonal")
+#   - sign: 移动方向 ("positive", "negative", "both")
+#     - horizontal: positive=向右, negative=向左
+#     - vertical: positive=向下, negative=向上

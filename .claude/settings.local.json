@@ -3,7 +3,8 @@
     "allow": [
       "Bash(curl:*)",
       "Bash(python:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

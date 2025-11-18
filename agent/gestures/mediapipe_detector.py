@@ -1,12 +1,20 @@
 ﻿import cv2
 import mediapipe as mp
 import numpy as np
-import logging
 from typing import List, Optional, Tuple, Dict, Any
 from dataclasses import dataclass
 import time
 import math
 from collections import deque
+from pathlib import Path
+import sys
+
+# 添加父目录到路径以导入logger_config
+sys.path.append(str(Path(__file__).parent.parent))
+from logger_config import setup_component_logger
+
+# 设置手势检测模块的日志
+logger = setup_component_logger("detector")
 
 
 @dataclass
@@ -43,7 +51,7 @@ class MediaPipeGestureDetector:
         self.last_gesture_time = 0
         self.gesture_cooldown = 1.0  # seconds between gestures
 
-        logging.info('MediaPipe gesture detector initialized with dynamic gesture support')
+        logger.info('MediaPipe gesture detector initialized with dynamic gesture support')
     
     def detect_hands(self, image: np.ndarray) -> Optional[List[GestureResult]]:
         if image is None:
@@ -103,23 +111,32 @@ class MediaPipeGestureDetector:
         
         # Define gestures based on finger states
         if self._is_pointing_up(finger_states):
+            logger.info('[DETECTOR] Recognized POINT_UP')
             return 'POINT_UP', 0.9
         elif self._is_pointing_index(finger_states):
+            logger.info('[DETECTOR] Recognized POINT_INDEX')
             return 'POINT_INDEX', 0.9
         elif self._is_thumbs_up(finger_states):
+            logger.info('[DETECTOR] Recognized THUMBS_UP')
             return 'THUMBS_UP', 0.9
         elif self._is_thumbs_down(finger_states):
+            logger.info('[DETECTOR] Recognized THUMBS_DOWN')
             return 'THUMBS_DOWN', 0.9
         elif self._is_open_palm(finger_states):
+            logger.info('[DETECTOR] Recognized OPEN_PALM')
             return 'OPEN_PALM', 0.8
         elif self._is_closed_fist(finger_states):
+            logger.info('[DETECTOR] Recognized CLOSED_FIST')
             return 'CLOSED_FIST', 0.9
         elif self._is_victory(finger_states):
+            logger.info('[DETECTOR] Recognized VICTORY')
             return 'VICTORY', 0.9
         elif self._is_ok_sign(landmarks):
+            logger.info('[DETECTOR] Recognized OK_SIGN')
             return 'OK_SIGN', 0.8
-            
-        return None, 0.0
+        else:
+            # 不记录每个识别失败，避免日志过多
+            return None, 0.0
     
     def _get_finger_states(self, landmarks: List[Tuple[float, float, float]]) -> Dict[str, bool]:
         # Finger tip and base indices
@@ -212,6 +229,7 @@ class MediaPipeGestureDetector:
 
     def _recognize_dynamic_gesture(self) -> Optional[str]:
         """识别动态手势"""
+        import logging
         current_time = time.time()
 
         # 手势冷却
@@ -231,8 +249,12 @@ class MediaPipeGestureDetector:
         dy = end_pos[1] - start_pos[1]
         distance = math.sqrt(dx**2 + dy**2)
 
+        logger.info('[DETECTOR] Dynamic gesture analysis: history_len=%d, dx=%.3f, dy=%.3f, distance=%.3f',
+                    len(self.hand_history), dx, dy, distance)
+
         # 检查最小距离
         if distance < self.min_swipe_distance:
+            logger.info('[DETECTOR] Distance too small: %.3f < %.3f', distance, self.min_swipe_distance)
             return None
 
         # 计算主要方向
@@ -240,19 +262,23 @@ class MediaPipeGestureDetector:
             if dx > 0:
                 self.last_dynamic_gesture_time = current_time
                 self.hand_history.clear()  # 清空历史，准备下一次手势
+                logger.info('[DETECTOR] Recognized SWIPE_RIGHT (dx=%.3f > 0)', dx)
                 return "SWIPE_RIGHT"
             else:
                 self.last_dynamic_gesture_time = current_time
                 self.hand_history.clear()
+                logger.info('[DETECTOR] Recognized SWIPE_LEFT (dx=%.3f < 0)', dx)
                 return "SWIPE_LEFT"
         else:  # 垂直主导
             if dy > 0:
                 self.last_dynamic_gesture_time = current_time
                 self.hand_history.clear()
+                logger.info('[DETECTOR] Recognized SWIPE_DOWN (dy=%.3f > 0)', dy)
                 return "SWIPE_DOWN"
             else:
                 self.last_dynamic_gesture_time = current_time
                 self.hand_history.clear()
+                logger.info('[DETECTOR] Recognized SWIPE_UP (dy=%.3f < 0)', dy)
                 return "SWIPE_UP"
 
 

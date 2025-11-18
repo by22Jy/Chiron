@@ -1,17 +1,17 @@
 ﻿import cv2
 import threading
 import time
-import logging
 from typing import Optional, Callable, Dict, Any
 from queue import Queue, Empty
 import numpy as np
 from dataclasses import dataclass
 
-# 设置VideoProcessor模块的日志级别
-logging.getLogger(__name__).setLevel(logging.DEBUG)
-
 from gestures.mediapipe_detector import MediaPipeGestureDetector, GestureResult
 from actions.executor import execute_action
+from logger_config import setup_component_logger
+
+# 设置VideoProcessor的日志
+logger = setup_component_logger("video")
 
 
 @dataclass
@@ -59,7 +59,7 @@ class VideoProcessor:
             # Initialize camera
             self.cap = cv2.VideoCapture(self.config.camera_id)
             if not self.cap.isOpened():
-                logging.error('Failed to open camera %d', self.config.camera_id)
+                logger.error('Failed to open camera %d', self.config.camera_id)
                 return False
             
             # Set camera properties
@@ -70,15 +70,15 @@ class VideoProcessor:
             # Initialize gesture detector (现在支持动态手势)
             self.detector = MediaPipeGestureDetector()
             
-            logging.info('Video processor initialized: %dx%d @ %dfps', self.config.width, self.config.height, self.config.fps)
+            logger.info('Video processor initialized: %dx%d @ %dfps', self.config.width, self.config.height, self.config.fps)
             return True
         except Exception as exc:
-            logging.error('Failed to initialize video processor: %s', exc)
+            logger.error('Failed to initialize video processor: %s', exc)
             return False
     
     def start(self):
         if self.running:
-            logging.warning('Video processor already running')
+            logger.warning('Video processor already running')
             return
         
         if not self.initialize():
@@ -98,10 +98,10 @@ class VideoProcessor:
         if self.display_thread:
             self.display_thread.start()
         
-        logging.info('Video processor started')
+        logger.info('Video processor started')
     
     def stop(self):
-        logging.info('Stopping video processor...')
+        logger.info('Stopping video processor...')
         self.running = False
         
         # Wait for threads to finish
@@ -119,15 +119,15 @@ class VideoProcessor:
             self.detector.close()
         cv2.destroyAllWindows()
         
-        logging.info('Video processor stopped')
+        logger.info('Video processor stopped')
     
     def pause(self):
         self.paused = True
-        logging.info('Video processor paused')
+        logger.info('Video processor paused')
     
     def resume(self):
         self.paused = False
-        logging.info('Video processor resumed')
+        logger.info('Video processor resumed')
     
     def _capture_frames(self):
         while self.running:
@@ -144,7 +144,7 @@ class VideoProcessor:
                         # Queue full, skip frame
                         pass
                 else:
-                    logging.error('Failed to capture frame')
+                    logger.error('Failed to capture frame')
                     break
             else:
                 time.sleep(0.1)
@@ -194,7 +194,7 @@ class VideoProcessor:
                 except Empty:
                     continue
                 except Exception as exc:
-                    logging.error('Error processing frame: %s', exc)
+                    logger.error('Error processing frame: %s', exc)
             else:
                 time.sleep(0.1)
         
@@ -226,7 +226,7 @@ class VideoProcessor:
                     # Handle key presses
                     key = cv2.waitKey(1) & 0xFF
                     if key == ord('q') or key == 27:  # 'q' or ESC
-                        logging.info('User requested stop')
+                        logger.info('User requested stop')
                         self.running = False
                     elif key == ord(' '):  # Space to pause/resume
                         if self.paused:
@@ -237,14 +237,14 @@ class VideoProcessor:
                 except Empty:
                     continue
                 except Exception as exc:
-                    logging.error('Error displaying results: %s', exc)
+                    logger.error('Error displaying results: %s', exc)
             else:
                 time.sleep(0.1)
         
     def _handle_gesture(self, gesture_result: GestureResult):
         # 详细日志记录
-        logging.info('[DEBUG] Detected gesture: %s', gesture_result.gesture_code)
-        logging.info('[DEBUG] Available mappings: %s', list(self.gesture_mapping.keys()))
+        logger.info('[DEBUG] Detected gesture: %s', gesture_result.gesture_code)
+        logger.info('[DEBUG] Available mappings: %s', list(self.gesture_mapping.keys()))
 
         # 尝试匹配原始手势码和转换为小写的手势码
         gesture_code_original = gesture_result.gesture_code
@@ -257,24 +257,24 @@ class VideoProcessor:
             matched_code = gesture_code_lower
 
         if action_config:
-            logging.info('[MATCH] Found mapping for %s -> %s', gesture_result.gesture_code, matched_code)
+            logger.info('[MATCH] Found mapping for %s -> %s', gesture_result.gesture_code, matched_code)
         if not action_config:
-            logging.warning('[ERROR] No action mapping for gesture: %s', gesture_result.gesture_code)
-            logging.warning('[DEBUG] Available mapping keys: %s', self.gesture_mapping.keys())
+            logger.warning('[ERROR] No action mapping for gesture: %s', gesture_result.gesture_code)
+            logger.warning('[DEBUG] Available mapping keys: %s', self.gesture_mapping.keys())
             return
 
         action_type = action_config.get('type')
         action_value = action_config.get('value')
         action_payload = action_config.get('payload')
 
-        logging.info('[DEBUG] Action config found for %s: type=%s, value=%s',
+        logger.info('[DEBUG] Action config found for %s: type=%s, value=%s',
                      gesture_result.gesture_code, action_type, action_value)
 
         if not action_type:
-            logging.warning('[ERROR] No action type for gesture: %s', gesture_result.gesture_code)
+            logger.warning('[ERROR] No action type for gesture: %s', gesture_result.gesture_code)
             return
 
-        logging.info('[ACTION] Executing action for gesture %s: %s - %s',
+        logger.info('[ACTION] Executing action for gesture %s: %s - %s',
                      gesture_result.gesture_code, action_type, action_value)
 
         # 确保浏览器获得焦点并添加延迟
@@ -289,7 +289,7 @@ class VideoProcessor:
 
         try:
             success, message = execute_action(action_type, action_value, action_payload)
-            logging.info('[ACTION_RESULT] Execute result for %s: success=%s, message=%s',
+            logger.info('[ACTION_RESULT] Execute result for %s: success=%s, message=%s',
                          gesture_result.gesture_code, success, message)
 
             # 为浏览器操作添加响应延迟
@@ -297,7 +297,7 @@ class VideoProcessor:
                 time.sleep(0.3)
 
         except Exception as exc:
-            logging.exception('[ACTION_ERROR] Exception executing action for %s: %s',
+            logger.exception('[ACTION_ERROR] Exception executing action for %s: %s',
                               gesture_result.gesture_code, exc)
             success, message = False, f'Exception: {exc}'
 
@@ -305,13 +305,13 @@ class VideoProcessor:
             self.on_action_executed(gesture_result.gesture_code, success, message)
 
         if success:
-            logging.info('[SUCCESS] Action executed successfully: %s', message)
+            logger.info('[SUCCESS] Action executed successfully: %s', message)
         else:
-            logging.warning('[FAIL] Action execution failed: %s', message)
+            logger.warning('[FAIL] Action execution failed: %s', message)
     
     def update_mapping(self, new_mapping: Dict[str, Dict]):
         self.gesture_mapping = new_mapping
-        logging.info('Updated gesture mapping with %d entries', len(new_mapping))
+        logger.info('Updated gesture mapping with %d entries', len(new_mapping))
     
     def get_stats(self) -> Dict[str, Any]:
         return {

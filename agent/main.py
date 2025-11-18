@@ -1,6 +1,5 @@
 import argparse
 import json
-import logging
 import sys
 import signal
 import threading
@@ -14,18 +13,15 @@ import yaml
 from video_processor import VideoProcessor, VideoConfig
 from gestures.mediapipe_detector import GestureResult
 from actions.executor import get_supported_actions
+from logger_config import setup_component_logger
 
 try:
     import pyautogui  # type: ignore
 except Exception:  # pragma: no cover
     pyautogui = None
 
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s %(message)s',
-    datefmt='%H:%M:%S',
-)
+# 设置主agent的日志
+logger = setup_component_logger("agent")
 
 
 class AgentConfig:
@@ -66,7 +62,7 @@ class GestureAgent:
             signal.signal(signal.SIGBREAK, self._signal_handler)
     
     def _signal_handler(self, signum, frame):
-        logging.info('Received signal %d, shutting down...', signum)
+        logger.info('Received signal %d, shutting down...', signum)
         self.stop()
     
     def sync_config(self) -> None:
@@ -75,7 +71,7 @@ class GestureAgent:
             'application': self.config.application,
             'os': self.config.os_type,
         }
-        logging.info('Fetching config from %s', self.config.base_url)
+        logger.info('Fetching config from %s', self.config.base_url)
         try:
             resp = requests.get(f'{self.config.base_url}/api/config', params=params, timeout=10)
             resp.raise_for_status()
@@ -91,20 +87,20 @@ class GestureAgent:
                     'description': action.get('description'),
                     'payload': action.get('payloadJson'),
                 }
-            logging.info('Loaded %d gesture mappings', len(self.mapping))
+            logger.info('Loaded %d gesture mappings', len(self.mapping))
             
             # Update video processor mapping if it exists
             if self.video_processor:
                 self.video_processor.update_mapping(self.mapping)
         except Exception as exc:
-            logging.error('Failed to sync config: %s', exc)
+            logger.error('Failed to sync config: %s', exc)
             raise
     
     def perform_action(self, gesture_code: str) -> bool:
-        logging.info('🎯 检测到手势: %s', gesture_code)  # 显示所有检测到的手势
+        logger.info('🎯 检测到手势: %s', gesture_code)  # 显示所有检测到的手势
         action = self.mapping.get(gesture_code)
         if not action:
-            logging.warning('No action mapping for gesture: %s', gesture_code)
+            logger.warning('No action mapping for gesture: %s', gesture_code)
             return False
     
         action_type = (action.get('type') or '').lower()
@@ -118,7 +114,7 @@ class GestureAgent:
             success, message = execute_action(action_type, action_value, action_payload)
         except Exception as exc:
             message = f'Execution failed: {exc}'
-            logging.exception('Failed to perform action for %s', gesture_code)
+            logger.exception('Failed to perform action for %s', gesture_code)
     
         self.post_log(
             gesture_code=gesture_code,
@@ -154,9 +150,9 @@ class GestureAgent:
                 timeout=10,
             )
             resp.raise_for_status()
-            logging.info('Log posted: %s', resp.json())
+            logger.info('Log posted: %s', resp.json())
         except Exception as exc:
-            logging.error('Failed to post log: %s', exc)
+            logger.error('Failed to post log: %s', exc)
     
     def send_event(self, event_type: str, payload: Optional[dict] = None) -> None:
         body = {
@@ -168,44 +164,50 @@ class GestureAgent:
         try:
             resp = requests.post(f'{self.config.base_url}/api/event', json=body, timeout=10)
             resp.raise_for_status()
-            logging.info('Event acknowledged: %s', resp.json())
+            logger.info('Event acknowledged: %s', resp.json())
         except Exception as exc:
-            logging.error('Failed to send event: %s', exc)
+            logger.error('Failed to send event: %s', exc)
     
     def start_realtime(self):
-        logging.info('Starting real-time gesture detection...')
+        logger.info('[AGENT] Starting real-time gesture detection...')
         self.running = True
-        
+
         try:
+            logger.info('[AGENT] Syncing configuration from backend...')
             # Initial config sync
             self.sync_config()
-            
+            logger.info('[AGENT] Configuration synced. Loaded %d gesture mappings', len(self.mapping))
+            logger.info('[AGENT] Available mappings: %s', list(self.mapping.keys()))
+
             # Initialize and start video processor
+            logger.info('[AGENT] Initializing video processor...')
             self.video_processor = VideoProcessor(self.config.video_config, self.mapping)
-            
+
             # Set callbacks
+            logger.info('[AGENT] Setting up callbacks...')
             self.video_processor.on_gesture_detected = self._on_gesture_detected
             self.video_processor.on_action_executed = self._on_action_executed
-            
+
             # Start video processing
+            logger.info('[AGENT] Starting video processor...')
             self.video_processor.start()
-            
-            logging.info('Real-time gesture detection started')
-            logging.info('Press Ctrl+C to stop, or press Space in preview window to pause/resume')
+
+            logger.info('[AGENT] Real-time gesture detection started successfully')
+            logger.info('[AGENT] Press Ctrl+C to stop, or press Space in preview window to pause/resume')
             
             # Keep the main thread alive
             while self.running and not self.should_stop.is_set():
                 time.sleep(0.5)
                 
         except KeyboardInterrupt:
-            logging.info('User interrupted, stopping...')
+            logger.info('User interrupted, stopping...')
         except Exception as exc:
-            logging.error('Error in realtime mode: %s', exc)
+            logger.error('Error in realtime mode: %s', exc)
         finally:
             self.stop()
     
     def start_daemon(self):
-        logging.info('Starting daemon mode...')
+        logger.info('Starting daemon mode...')
         self.running = True
         
         try:
@@ -222,24 +224,55 @@ class GestureAgent:
             while self.running and not self.should_stop.is_set():
                 try:
                     self.sync_config()
-                    logging.info('Daemon running, checked config at %s', time.strftime('%H:%M:%S'))
+                    logger.info('Daemon running, checked config at %s', time.strftime('%H:%M:%S'))
                     self.should_stop.wait(self.config.poll_interval)
                 except Exception as exc:
-                    logging.error('Error in daemon loop: %s', exc)
+                    logger.error('Error in daemon loop: %s', exc)
                     self.should_stop.wait(5)  # Wait before retry
         except KeyboardInterrupt:
-            logging.info('User interrupted, stopping daemon...')
+            logger.info('User interrupted, stopping daemon...')
         finally:
             self.stop()
     
     def _on_gesture_detected(self, gesture_result: GestureResult):
-        logging.info('Gesture detected: %s (confidence: %.2f)', gesture_result.gesture_code, gesture_result.confidence)
+        logger.info('[AGENT] Gesture detected: %s (confidence: %.2f)', gesture_result.gesture_code, gesture_result.confidence)
+        logger.info('[AGENT] Available mappings in agent: %s', list(self.mapping.keys()))
+
+        # Check if we have a mapping for this gesture
+        gesture_code_original = gesture_result.gesture_code
+        gesture_code_lower = gesture_code_original.lower()
+
+        has_mapping_original = gesture_code_original in self.mapping
+        has_mapping_lower = gesture_code_lower in self.mapping
+
+        logger.info('[AGENT] Mapping check: %s -> %s, %s -> %s',
+                    gesture_code_original, has_mapping_original,
+                    gesture_code_lower, has_mapping_lower)
+
+        if has_mapping_original:
+            action = self.mapping[gesture_code_original]
+            logger.info('[AGENT] Found action mapping: %s', action)
+        elif has_mapping_lower:
+            action = self.mapping[gesture_code_lower]
+            logger.info('[AGENT] Found action mapping (lowercase): %s', action)
+        else:
+            logger.warning('[AGENT] No action mapping found for gesture: %s', gesture_code_original)
     
     def _on_action_executed(self, gesture_code: str, success: bool, message: str):
+        logger.info('[AGENT] Action executed: gesture=%s, success=%s, message=%s',
+                    gesture_code, success, message)
+
+        # Get action details for logging
+        action = self.mapping.get(gesture_code, {})
+        action_type = action.get('type', 'unknown')
+        action_value = action.get('value', '')
+
+        logger.info('[AGENT] Action details: type=%s, value=%s', action_type, action_value)
+
         self.post_log(
             gesture_code=gesture_code,
-            action_type=self.mapping.get(gesture_code, {}).get('type', 'unknown'),
-            action_value=self.mapping.get(gesture_code, {}).get('value', ''),
+            action_type=action_type,
+            action_value=action_value,
             status='success' if success else 'failure',
             message=message
         )
@@ -248,7 +281,7 @@ class GestureAgent:
         if not self.running:
             return
         
-        logging.info('Stopping gesture agent...')
+        logger.info('Stopping gesture agent...')
         self.running = False
         self.should_stop.set()
         
@@ -256,18 +289,18 @@ class GestureAgent:
             self.video_processor.stop()
             self.video_processor = None
         
-        logging.info('Gesture agent stopped')
+        logger.info('Gesture agent stopped')
     
     def list_supported_actions(self):
         supported = get_supported_actions()
-        logging.info('Supported action types:')
+        logger.info('Supported action types:')
         for action_type, description in supported.items():
-            logging.info('  %s: %s', action_type, description)
+            logger.info('  %s: %s', action_type, description)
 
 
 def load_config(path: Path) -> AgentConfig:
     if not path.exists():
-        logging.error('Config file %s not found', path)
+        logger.error('Config file %s not found', path)
         sys.exit(1)
     with path.open('r', encoding='utf-8') as f:
         cfg = yaml.safe_load(f) or {}
@@ -275,7 +308,7 @@ def load_config(path: Path) -> AgentConfig:
 
 
 def interactive_loop(agent: GestureAgent):
-    logging.info('Entering interactive mode. Type quit to exit.')
+    logger.info('Entering interactive mode. Type quit to exit.')
     while True:
         try:
             raw = input('Gesture code> ').strip()
@@ -294,7 +327,7 @@ def interactive_loop(agent: GestureAgent):
             agent.list_supported_actions()
             continue
         agent.perform_action(raw)
-    logging.info('Interactive mode exited.')
+    logger.info('Interactive mode exited.')
 
 
 def main():
@@ -325,11 +358,11 @@ def main():
             try:
                 agent.sync_config()
             except Exception as exc:
-                logging.error('Unable to fetch config: %s', exc)
+                logger.error('Unable to fetch config: %s', exc)
                 sys.exit(1)
         
         if args.sync and not args.watch and not args.gesture and not args.event:
-            logging.info('Config sync finished.')
+            logger.info('Config sync finished.')
             return
         
         if args.event:
@@ -346,7 +379,7 @@ def main():
             agent.start_daemon()
             
     except Exception as exc:
-        logging.error('Fatal error: %s', exc)
+        logger.error('Fatal error: %s', exc)
         sys.exit(1)
     finally:
         agent.stop()

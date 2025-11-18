@@ -5,7 +5,6 @@
 """
 
 import time
-import logging
 import sys
 from pathlib import Path
 from typing import Dict, Optional, Any
@@ -16,14 +15,10 @@ sys.path.append(str(Path(__file__).parent))
 from video_processor import VideoProcessor, VideoConfig
 from gestures.mediapipe_detector import GestureResult
 from actions.executor import execute_action
+from logger_config import setup_component_logger
 
 # 配置日志
-logging.basicConfig(
-    level=logging.DEBUG,  # 改为DEBUG级别以显示更多日志
-    format='[%(asctime)s] %(levelname)s %(message)s',
-    datefmt='%H:%M:%S',
-)
-logger = logging.getLogger(__name__)
+logger = setup_component_logger("standalone")
 
 class StandaloneGestureController:
     """独立手势控制器"""

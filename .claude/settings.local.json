@@ -4,7 +4,14 @@
       "Bash(curl:*)",
       "Bash(python:*)",
       "Bash(git checkout:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(mysql:*)",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

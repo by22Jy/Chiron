@@ -76,13 +76,13 @@ class StandaloneGestureController:
             # 动态手势映射
             'SWIPE_LEFT': {
                 'type': 'hotkey',
-                'value': 'alt+left',
-                'description': '浏览器后退'
+                'value': 'ctrl+pgup',
+                'description': '浏览器标签页左切换'
             },
             'SWIPE_RIGHT': {
                 'type': 'hotkey',
-                'value': 'alt+right',
-                'description': '浏览器前进'
+                'value': 'ctrl+pgdn',
+                'description': '浏览器标签页右切换'
             },
             'SWIPE_UP': {
                 'type': 'scroll',

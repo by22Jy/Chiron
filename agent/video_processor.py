@@ -246,7 +246,18 @@ class VideoProcessor:
         logging.info('[DEBUG] Detected gesture: %s', gesture_result.gesture_code)
         logging.info('[DEBUG] Available mappings: %s', list(self.gesture_mapping.keys()))
 
-        action_config = self.gesture_mapping.get(gesture_result.gesture_code)
+        # 尝试匹配原始手势码和转换为小写的手势码
+        gesture_code_original = gesture_result.gesture_code
+        gesture_code_lower = gesture_code_original.lower()
+
+        action_config = self.gesture_mapping.get(gesture_code_original)
+        matched_code = gesture_code_original
+        if not action_config:
+            action_config = self.gesture_mapping.get(gesture_code_lower)
+            matched_code = gesture_code_lower
+
+        if action_config:
+            logging.info('[MATCH] Found mapping for %s -> %s', gesture_result.gesture_code, matched_code)
         if not action_config:
             logging.warning('[ERROR] No action mapping for gesture: %s', gesture_result.gesture_code)
             logging.warning('[DEBUG] Available mapping keys: %s', self.gesture_mapping.keys())

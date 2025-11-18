@@ -32,64 +32,64 @@ class StandaloneGestureController:
         # 本地手势映射配置 (格式要匹配VideoProcessor期望的格式)
         self.gesture_mappings = {
             # 静态手势映射
-            'POINT_UP': {
+            'point_up': {
                 'type': 'click',
                 'value': 'left',
                 'description': '鼠标左键点击'
             },
-            'THUMBS_UP': {
+            'thumbs_up': {
                 'type': 'hotkey',
                 'value': 'enter',
                 'description': '确认/执行'
             },
-            'THUMBS_DOWN': {
+            'thumbs_down': {
                 'type': 'hotkey',
                 'value': 'escape',
                 'description': '取消/退出'
             },
-            'OPEN_PALM': {
+            'open_palm': {
                 'type': 'hotkey',
                 'value': 'win+d',
                 'description': '显示桌面'
             },
-            'CLOSED_FIST': {
+            'closed_fist': {
                 'type': 'hotkey',
                 'value': 'alt+f4',
                 'description': '关闭窗口'
             },
-            'VICTORY': {
+            'victory': {
                 'type': 'hotkey',
                 'value': 'ctrl+t',
                 'description': '浏览器新标签页'
             },
-            'OK_SIGN': {
+            'ok_sign': {
                 'type': 'hotkey',
                 'value': 'f11',
                 'description': '全屏切换'
             },
-            'POINT_INDEX': {
+            'point_index': {
                 'type': 'click',
                 'value': 'right',
                 'description': '鼠标右键点击'
             },
 
             # 动态手势映射
-            'SWIPE_LEFT': {
+            'swipe_left': {
                 'type': 'hotkey',
-                'value': 'ctrl+shift+tab',
+                'value': 'ctrl+pgup',
                 'description': '浏览器标签页左切换'
             },
-            'SWIPE_RIGHT': {
+            'swipe_right': {
                 'type': 'hotkey',
-                'value': 'ctrl+tab',
+                'value': 'ctrl+pgdn',
                 'description': '浏览器标签页右切换'
             },
-            'SWIPE_UP': {
+            'swipe_up': {
                 'type': 'scroll',
                 'value': '5',
                 'description': '向上滚动'
             },
-            'SWIPE_DOWN': {
+            'swipe_down': {
                 'type': 'scroll',
                 'value': '-5',
                 'description': '向下滚动'
@@ -103,7 +103,8 @@ class StandaloneGestureController:
 
     def on_gesture_detected(self, gesture_result: GestureResult):
         """处理检测到的手势"""
-        gesture_code = gesture_result.gesture_code
+        gesture_code_original = gesture_result.gesture_code
+        gesture_code = gesture_code_original.lower()  # 转换为小写以匹配映射
         current_time = time.time()
 
         # 检查手势冷却
@@ -117,7 +118,7 @@ class StandaloneGestureController:
         # 获取动作映射
         action_mapping = self.gesture_mappings.get(gesture_code)
         if not action_mapping:
-            logger.warning(f'未找到手势映射: {gesture_code}')
+            logger.warning(f'未找到手势映射: {gesture_code_original} (尝试: {gesture_code})')
             return
 
         logger.info(f'[GESTURE] 检测到手势: {gesture_code} ({action_mapping["description"]})')

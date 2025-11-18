@@ -19,7 +19,7 @@ from actions.executor import execute_action
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # 改为DEBUG级别以显示更多日志
     format='[%(asctime)s] %(levelname)s %(message)s',
     datefmt='%H:%M:%S',
 )
@@ -76,12 +76,12 @@ class StandaloneGestureController:
             # 动态手势映射
             'SWIPE_LEFT': {
                 'type': 'hotkey',
-                'value': 'ctrl+pgup',
+                'value': 'ctrl+shift+tab',
                 'description': '浏览器标签页左切换'
             },
             'SWIPE_RIGHT': {
                 'type': 'hotkey',
-                'value': 'ctrl+pgdn',
+                'value': 'ctrl+tab',
                 'description': '浏览器标签页右切换'
             },
             'SWIPE_UP': {
@@ -192,14 +192,21 @@ class StandaloneGestureController:
 
         # 创建视频处理器
         try:
+            logger.info('[INIT] 初始化VideoProcessor，映射数量: %d', len(self.gesture_mappings))
+            logger.info('[INIT] 手势映射键: %s', list(self.gesture_mappings.keys()))
+
             processor = VideoProcessor(config=video_config, gesture_mapping=self.gesture_mappings)
 
             # 设置回调函数
             processor.on_gesture_detected = self.on_gesture_detected
             processor.on_action_executed = self.on_action_executed
 
+            logger.info('[INIT] VideoProcessor初始化成功')
+            logger.info('[INIT] 手势映射已设置，总映射数: %d', len(self.gesture_mappings))
+
         except Exception as exc:
             logger.error(f'[ERROR] 无法初始化摄像头: {exc}')
+            logger.exception('[ERROR] 初始化异常详情:')
             return
 
         logger.info('[SUCCESS] 摄像头初始化成功')

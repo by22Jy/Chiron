@@ -7,6 +7,9 @@ from queue import Queue, Empty
 import numpy as np
 from dataclasses import dataclass
 
+# 设置VideoProcessor模块的日志级别
+logging.getLogger(__name__).setLevel(logging.DEBUG)
+
 from gestures.mediapipe_detector import MediaPipeGestureDetector, GestureResult
 from actions.executor import execute_action
 
@@ -239,30 +242,61 @@ class VideoProcessor:
                 time.sleep(0.1)
         
     def _handle_gesture(self, gesture_result: GestureResult):
+        # 详细日志记录
+        logging.info('[DEBUG] Detected gesture: %s', gesture_result.gesture_code)
+        logging.info('[DEBUG] Available mappings: %s', list(self.gesture_mapping.keys()))
+
         action_config = self.gesture_mapping.get(gesture_result.gesture_code)
         if not action_config:
-            logging.warning('No action mapping for gesture: %s', gesture_result.gesture_code)
+            logging.warning('[ERROR] No action mapping for gesture: %s', gesture_result.gesture_code)
+            logging.warning('[DEBUG] Available mapping keys: %s', self.gesture_mapping.keys())
             return
-            
+
         action_type = action_config.get('type')
         action_value = action_config.get('value')
         action_payload = action_config.get('payload')
-        
+
+        logging.info('[DEBUG] Action config found for %s: type=%s, value=%s',
+                     gesture_result.gesture_code, action_type, action_value)
+
         if not action_type:
-            logging.warning('No action type for gesture: %s', gesture_result.gesture_code)
+            logging.warning('[ERROR] No action type for gesture: %s', gesture_result.gesture_code)
             return
-            
-        logging.info('Executing action for gesture %s: %s - %s', gesture_result.gesture_code, action_type, action_value)
-        
-        success, message = execute_action(action_type, action_value, action_payload)
-        
+
+        logging.info('[ACTION] Executing action for gesture %s: %s - %s',
+                     gesture_result.gesture_code, action_type, action_value)
+
+        # 确保浏览器获得焦点并添加延迟
+        import pyautogui
+        time.sleep(0.1)
+        try:
+            # 点击屏幕中央获得焦点
+            pyautogui.click(pyautogui.size().width // 2, pyautogui.size().height // 2)
+            time.sleep(0.2)
+        except:
+            pass  # 如果点击失败，继续执行
+
+        try:
+            success, message = execute_action(action_type, action_value, action_payload)
+            logging.info('[ACTION_RESULT] Execute result for %s: success=%s, message=%s',
+                         gesture_result.gesture_code, success, message)
+
+            # 为浏览器操作添加响应延迟
+            if success and action_type == 'hotkey':
+                time.sleep(0.3)
+
+        except Exception as exc:
+            logging.exception('[ACTION_ERROR] Exception executing action for %s: %s',
+                              gesture_result.gesture_code, exc)
+            success, message = False, f'Exception: {exc}'
+
         if self.on_action_executed:
             self.on_action_executed(gesture_result.gesture_code, success, message)
-        
+
         if success:
-            logging.info('Action executed successfully: %s', message)
+            logging.info('[SUCCESS] Action executed successfully: %s', message)
         else:
-            logging.warning('Action execution failed: %s', message)
+            logging.warning('[FAIL] Action execution failed: %s', message)
     
     def update_mapping(self, new_mapping: Dict[str, Dict]):
         self.gesture_mapping = new_mapping

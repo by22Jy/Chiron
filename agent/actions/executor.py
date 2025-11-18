@@ -18,16 +18,25 @@ class HotkeyExecutor(ActionExecutor):
     def execute(self, action_value: str, payload: Optional[str] = None) -> Tuple[bool, str]:
         if not action_value:
             return False, 'Empty hotkey value'
-        
+
         try:
             keys = [k.strip() for k in action_value.replace('+', ' ').split() if k.strip()]
             if not keys:
                 return False, 'Invalid hotkey definition'
-            
-            logging.info('Pressing hotkey: %s', '+'.join(keys))
+
+            logging.info('[HOTKEY] Preparing to press hotkey: %s -> keys: %s', action_value, keys)
+
+            # 添加小延迟确保焦点在正确窗口
+            import time
+            time.sleep(0.1)
+
+            logging.info('[HOTKEY] Executing pyautogui.hotkey(*%s)', keys)
             pyautogui.hotkey(*keys)
+
+            logging.info('[HOTKEY] Successfully pressed hotkey: %s', '+'.join(keys))
             return True, f'Hotkey {action_value} sent'
         except Exception as exc:
+            logging.error('[HOTKEY_ERROR] Failed to press hotkey %s: %s', action_value, exc)
             return False, f'Hotkey execution failed: {exc}'
 
 

@@ -5,6 +5,8 @@ from PIL import Image
 import io, requests, base64
 import numpy as np
 from collections import deque
+import cv2
+from enhanced_gesture_detector import MediaPipeGestureDetector
 
 app = FastAPI()
 app.add_middleware(
@@ -63,6 +65,9 @@ class SimpleGestureRecognizer:
 # 为每个 WebSocket 连接维护一个手势识别器实例
 gesture_recognizers = {}
 
+# 全局MediaPipe手势检测器实例
+mediapipe_detector = MediaPipeGestureDetector()
+
 
 @app.get("/health")
 def health():
@@ -116,14 +121,33 @@ def run_analyze(image: Image.Image, recognizer: SimpleGestureRecognizer = None):
 
     # --- 手势识别 & 关系推断 ---
     actions = []
-    # 1. 挥手手势
+
+    # 1. MediaPipe 手势识别 (优先级更高)
+    try:
+        # 转换PIL图像为numpy数组
+        np_image = np.array(image)
+        if len(np_image.shape) == 3 and np_image.shape[2] == 3:  # RGB
+            # 转换为BGR供MediaPipe使用
+            np_image_bgr = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+        else:
+            np_image_bgr = np_image
+
+        # 使用MediaPipe进行手势检测
+        mediapipe_results = mediapipe_detector.detect_hands(np_image_bgr)
+        if mediapipe_results:
+            for gesture in mediapipe_results:
+                actions.append(gesture.gesture_code.lower())
+    except Exception as e:
+        print(f"MediaPipe gesture detection error: {e}")
+
+    # 2. 基于pose的挥手手势 (备用)
     if recognizer and persons:
         # 简单起见，我们只基于画面中的第一个人做手势识别
         gesture = recognizer.recognize(all_keypoints[0])
-        if gesture:
+        if gesture and gesture not in actions:  # 避免重复
             actions.append(gesture)
 
-    # 2. 空间关系: 手腕与物体
+    # 3. 空间关系: 手腕与物体
     def wrist_points(kp):
         if not kp: return []
         # 9: left_wrist, 10: right_wrist
@@ -145,7 +169,7 @@ def run_analyze(image: Image.Image, recognizer: SimpleGestureRecognizer = None):
             for w in wrists:
                 if box_contains(obj["box"], w) or point_box_distance(obj["box"], w) < 50.0:
                     actions.append(f"person_{p['id']} holding {obj['label']}")
-                    break 
+                    break
 
     return {"detections": det_boxes, "poses": persons, "actions": list(set(actions))}
 
@@ -162,6 +186,40 @@ async def analyze_file(file: UploadFile = File(...)):
     image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     # HTTP 调用是无状态的，所以每次都创建新的识别器
     return run_analyze(image, SimpleGestureRecognizer())
+
+@app.post("/gesture/file")
+async def gesture_file(file: UploadFile = File(...)):
+    """专门的手势检测端点，使用MediaPipe进行高级手势识别"""
+    img_bytes = await file.read()
+    image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+    try:
+        # 转换PIL图像为numpy数组
+        np_image = np.array(image)
+        if len(np_image.shape) == 3 and np_image.shape[2] == 3:  # RGB
+            # 转换为BGR供MediaPipe使用
+            np_image_bgr = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+        else:
+            np_image_bgr = np_image
+
+        # 使用MediaPipe进行手势检测
+        mediapipe_results = mediapipe_detector.detect_hands(np_image_bgr)
+
+        if mediapipe_results:
+            gestures = []
+            for gesture in mediapipe_results:
+                gestures.append({
+                    "gesture_code": gesture.gesture_code,
+                    "confidence": gesture.confidence,
+                    "timestamp": gesture.timestamp,
+                    "bbox": gesture.bbox
+                })
+            return {"gestures": gestures, "count": len(gestures)}
+        else:
+            return {"gestures": [], "count": 0}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gesture detection failed: {str(e)}")
 
 # ... (emotion and url endpoints remain the same)
 @app.post("/detect/url")
@@ -271,3 +329,51 @@ async def ws_analyze(websocket: WebSocket):
     finally:
         if client_id in gesture_recognizers:
             del gesture_recognizers[client_id]
+
+@app.websocket("/ws/gesture")
+async def ws_gesture(websocket: WebSocket):
+    """专门的手势检测WebSocket端点，实时使用MediaPipe进行手势识别"""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data.startswith("data:image") and "," in data:
+                data = data.split(",", 1)[1]
+            img_bytes = base64.b64decode(data)
+            image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+            try:
+                # 转换PIL图像为numpy数组
+                np_image = np.array(image)
+                if len(np_image.shape) == 3 and np_image.shape[2] == 3:  # RGB
+                    # 转换为BGR供MediaPipe使用
+                    np_image_bgr = cv2.cvtColor(np_image, cv2.COLOR_RGB2BGR)
+                else:
+                    np_image_bgr = np_image
+
+                # 使用MediaPipe进行手势检测
+                mediapipe_results = mediapipe_detector.detect_hands(np_image_bgr)
+
+                if mediapipe_results:
+                    gestures = []
+                    for gesture in mediapipe_results:
+                        gestures.append({
+                            "gesture_code": gesture.gesture_code,
+                            "confidence": round(gesture.confidence, 2),
+                            "timestamp": round(gesture.timestamp, 3),
+                            "bbox": gesture.bbox
+                        })
+                    result = {"gestures": gestures, "count": len(gestures)}
+                else:
+                    result = {"gestures": [], "count": 0}
+
+                await websocket.send_json(result)
+
+            except Exception as e:
+                await websocket.send_json({"error": f"Gesture detection failed: {str(e)}"})
+
+    except Exception as e:
+        try:
+            await websocket.send_json({"error": f"WebSocket error: {str(e)}"})
+        except:
+            pass

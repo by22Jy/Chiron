@@ -430,7 +430,11 @@ const getActionLabel = (type) => {
 
 const refreshMappings = async () => {
   try {
-    await configStore.loadGestureMappings?.()
+    await configStore.loadGestureMappings?.({
+      username: 'admin',
+      application: 'chrome.exe',
+      os: 'windows'
+    })
     console.log('配置已刷新')
   } catch (error) {
     console.error('刷新配置失败:', error)
@@ -495,7 +499,11 @@ const resetDetectionParams = () => {
 
 // 生命周期
 onMounted(async () => {
-  await configStore.loadGestureMappings?.()
+  await configStore.loadGestureMappings?.({
+    username: 'admin',
+    application: 'chrome.exe',
+    os: 'windows'
+  })
 })
 </script>
 

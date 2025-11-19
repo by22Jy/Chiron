@@ -21,17 +21,27 @@ export const useConfigStore = defineStore('config', {
   getters: {
     // 获取特定手势的映射
     getMappingByGesture: (state) => (gesture) => {
-      return state.gestureMappings.find(mapping => mapping.gesture_code === gesture)
+      return state.gestureMappings.find(mapping => mapping.code === gesture)
     },
 
     // 获取所有静态手势
     staticGestures: (state) => {
-      return state.gestureMappings.filter(mapping => mapping.gesture_type === 'static')
+      return state.gestureMappings.filter(mapping => mapping.type === 'static').map(mapping => ({
+        gesture_code: mapping.code,
+        gesture_name: mapping.name,
+        gesture_type: mapping.type,
+        action: mapping.action
+      }))
     },
 
     // 获取所有动态手势
     dynamicGestures: (state) => {
-      return state.gestureMappings.filter(mapping => mapping.gesture_type === 'dynamic')
+      return state.gestureMappings.filter(mapping => mapping.type === 'dynamic').map(mapping => ({
+        gesture_code: mapping.code,
+        gesture_name: mapping.name,
+        gesture_type: mapping.type,
+        action: mapping.action
+      }))
     }
   },
 
@@ -42,9 +52,11 @@ export const useConfigStore = defineStore('config', {
       try {
         const response = await configApi.getGestureMappings(params)
         this.gestureMappings = response.mappings || []
+        console.log('Loaded gesture mappings:', this.gestureMappings)
         this.error = null
       } catch (error) {
         this.error = error.message
+        console.error('Failed to load gesture mappings:', error)
         throw error
       } finally {
         this.loading = false

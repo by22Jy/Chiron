@@ -1,60 +1,76 @@
 <template>
-  <div style="max-width:800px;margin:40px auto;font-family:system-ui">
-    <!-- Image Carousel for Gesture Control -->
-    <div style="margin-bottom: 24px;">
-      <h3>手势控制演示区域</h3>
-      <div style="position: relative; width: 100%; max-width:640px; margin: auto; border: 2px solid #666; padding: 8px;">
-        <img :src="images[currentImageIndex]" style="width: 100%; display: block;" />
-        <div style="position: absolute; top: 8px; left: 12px; background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px;">
-          图片 {{ currentImageIndex + 1 }} / {{ images.length }}
+  <AppLayout>
+    <!-- Dashboard -->
+    <div v-if="$route.path === '/' || $route.path === '/dashboard'">
+      <!-- Image Carousel for Gesture Control -->
+      <el-card class="demo-card" header="手势控制演示区域">
+        <div class="carousel-container">
+          <div class="carousel-image">
+            <img :src="images[currentImageIndex]" style="width: 100%; display: block;" />
+            <div class="carousel-info">
+              <span class="image-counter">图片 {{ currentImageIndex + 1 }} / {{ images.length }}</span>
+              <span v-if="lastGesture" class="gesture-indicator">
+                {{ lastGesture === 'swipe_right' ? '→ 右挥' : '← 左挥' }}
+              </span>
+            </div>
+          </div>
         </div>
-        <div v-if="lastGesture" style="position: absolute; top: 8px; right: 12px; background: #1E90FF; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;">
-          {{ lastGesture === 'swipe_right' ? '→ 右挥' : '← 左挥' }}
+      </el-card>
+
+      <!-- YOLO + LLM Demo -->
+      <el-card class="demo-card" header="YOLO + LLM 同步演示">
+        <el-form @submit.prevent="onSubmit" label-width="120px">
+          <el-form-item label="选择图片">
+            <el-input type="file" accept="image/*" @change="onFile" />
+          </el-form-item>
+          <el-form-item label="问题">
+            <el-input v-model="question" placeholder="输入你的问题" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :disabled="loading" @click="onSubmit">
+              {{ loading ? '处理中...' : '提交' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+        <div v-if="answer" class="answer-box">
+          <el-alert title="答案" type="success" :closable="false">
+            {{ answer }}
+          </el-alert>
         </div>
-      </div>
+      </el-card>
+
+      <!-- Realtime Camera Analysis -->
+      <el-card class="demo-card" header="实时摄像头分析 (WebSocket)">
+        <div class="camera-controls">
+          <el-select v-model="selectedDeviceId" @change="onDeviceChange" placeholder="选择摄像头" style="width: 220px">
+            <el-option v-for="d in devices" :key="d.deviceId" :value="d.deviceId" :label="d.label || ('摄像头 ' + (d.index+1))" />
+          </el-select>
+          <el-button :type="realtimeRelationOn ? 'danger' : 'primary'" @click="toggleRealtimeRelation">
+            {{ realtimeRelationOn ? '停止实时分析' : '开启摄像头实时分析' }}
+          </el-button>
+          <span v-if="wsError" class="error-message">{{ wsError }}</span>
+        </div>
+        <div class="camera-view">
+          <video ref="videoRef" autoplay playsinline class="camera-video"></video>
+          <div class="camera-info">
+            <el-alert v-if="realtimeRelationOn && relationActions.length" title="识别到的动作" type="success" :closable="false">
+              {{ relationActions.join('；') }}
+            </el-alert>
+            <el-alert v-if="!realtimeRelationOn && !wsError" title="请开启实时分析以进行手势控制" type="info" :closable="false" />
+          </div>
+        </div>
+      </el-card>
     </div>
 
-    <hr style="margin:28px 0" />
-
-    <h2>YOLO + LLM 同步演示</h2>
-    <form @submit.prevent="onSubmit">
-      <div style="margin:12px 0">
-        <input type="file" accept="image/*" @change="onFile" />
-      </div>
-      <div style="margin:12px 0">
-        <input v-model="question" placeholder="输入你的问题" style="width:100%;padding:8px" />
-      </div>
-      <button :disabled="loading">{{ loading ? '处理中...' : '提交' }}</button>
-    </form>
-    <div v-if="answer" style="margin-top:16px;padding:12px;border:1px solid #ddd">
-      <b>答案：</b>
-      <div>{{ answer }}</div>
-    </div>
-
-    <hr style="margin:28px 0" />
-    <h3>实时摄像头分析 (WebSocket)</h3>
-    <div style="margin:12px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
-      <select v-model="selectedDeviceId" @change="onDeviceChange" style="min-width:220px">
-        <option v-for="d in devices" :key="d.deviceId" :value="d.deviceId">
-          {{ d.label || ('摄像头 ' + (d.index+1)) }}
-        </option>
-      </select>
-      <button @click="toggleRealtimeRelation">{{ realtimeRelationOn ? '停止实时分析' : '开启摄像头实时分析' }}</button>
-      <span v-if="wsError" style="color:#c00">{{ wsError }}</span>
-    </div>
-    <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap">
-      <video ref="videoRef" autoplay playsinline style="width:320px; background:#000"></video>
-      <div>
-        <p v-if="realtimeRelationOn && relationActions.length"><b>识别到的动作:</b> {{ relationActions.join('；') }}</p>
-        <p v-if="!realtimeRelationOn && !wsError">请开启实时分析以进行手势控制</p>
-      </div>
-    </div>
-  </div>
+    <!-- Route for other pages -->
+    <router-view v-else />
+  </AppLayout>
 </template>
 
 <script setup>
 import axios from 'axios'
 import { ref, onBeforeUnmount, onMounted } from 'vue'
+import AppLayout from './components/Layout/AppLayout.vue'
 
 // --- Carousel State ---
 const images = ref([
@@ -257,7 +273,95 @@ onMounted(async () => {
 
 </script>
 
-<style>
-button{ padding:8px 16px; cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: 0.6; }
+<style scoped>
+.demo-card {
+  margin-bottom: 20px;
+}
+
+.carousel-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.carousel-image {
+  position: relative;
+  border: 2px solid #666;
+  padding: 8px;
+}
+
+.carousel-info {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.image-counter,
+.gesture-indicator {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.gesture-indicator {
+  background: #1E90FF;
+  font-weight: bold;
+}
+
+.answer-box {
+  margin-top: 16px;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.error-message {
+  color: #f56c6c;
+  font-size: 14px;
+}
+
+.camera-view {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.camera-video {
+  width: 320px;
+  background: #000;
+  border-radius: 4px;
+}
+
+.camera-info {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .camera-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .camera-view {
+    flex-direction: column;
+  }
+
+  .camera-video {
+    width: 100%;
+    max-width: 320px;
+  }
+}
 </style>

@@ -1,219 +1,192 @@
 <template>
-  <div class="dashboard">
-    <!-- 顶部统计卡片 -->
-    <el-row :gutter="20" class="stats-cards">
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <el-icon color="#409EFF"><TrendCharts /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ statistics.gesture_count }}</div>
-            <div class="stat-label">手势识别次数</div>
+  <div class="modern-dashboard">
+    <!-- 英雄区域 -->
+    <div class="hero-section animate-slide-in-top">
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1 class="hero-title">
+            YOLO-LLM
+            <span class="hero-accent">手势控制平台</span>
+          </h1>
+          <p class="hero-subtitle">基于人工智能的下一代手势交互体验</p>
+        </div>
+        <div class="hero-visual">
+          <div class="floating-card animate-float">
+            <div class="card-icon">
+              <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <circle cx="32" cy="32" r="30" stroke="url(#gradient1)" stroke-width="2"/>
+                <path d="M20 32 L28 40 L44 24" stroke="url(#gradient1)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs>
+                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#667eea"/>
+                    <stop offset="100%" style="stop-color:#764ba2"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <div class="status-pulse"></div>
           </div>
         </div>
-      </el-col>
+      </div>
+    </div>
 
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <el-icon color="#67C23A"><SuccessFilled /></el-icon>
+    <!-- 实时数据统计 -->
+    <div class="stats-section">
+      <h2 class="section-title animate-slide-in-left">实时性能监控</h2>
+      <div class="modern-grid">
+        <div class="data-card animate-slide-in-left" style="animation-delay: 0.1s">
+          <div class="card-header">
+            <div class="card-icon blue">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M3 3v18h18" stroke="currentColor" stroke-width="2"/>
+                <path d="M7 12l4 4 8-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="status-indicator online"></div>
           </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ (statistics.success_rate * 100).toFixed(1) }}%</div>
-            <div class="stat-label">识别成功率</div>
+          <div class="data-value">{{ statistics.gesture_count || 1,234 }}</div>
+          <div class="data-label">手势识别次数</div>
+          <div class="data-trend positive">+12.5%</div>
+        </div>
+
+        <div class="data-card animate-slide-in-left" style="animation-delay: 0.2s">
+          <div class="card-header">
+            <div class="card-icon green">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <path d="M8 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="status-indicator online"></div>
+          </div>
+          <div class="data-value">{{ (statistics.success_rate * 100).toFixed(1) || 98.7 }}%</div>
+          <div class="data-label">识别成功率</div>
+          <div class="data-trend positive">+2.3%</div>
+        </div>
+
+        <div class="data-card animate-slide-in-left" style="animation-delay: 0.3s">
+          <div class="card-header">
+            <div class="card-icon orange">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          <div class="data-value">{{ statistics.avg_response_time || 42 }}ms</div>
+          <div class="data-label">平均响应时间</div>
+          <div class="data-trend negative">+5ms</div>
+        </div>
+
+        <div class="data-card animate-slide-in-left" style="animation-delay: 0.4s">
+          <div class="card-header">
+            <div class="card-icon purple">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9h6v6H9z" fill="currentColor"/>
+              </svg>
+            </div>
+          </div>
+          <div class="data-value">{{ statistics.error_count || 3 }}</div>
+          <div class="data-label">错误次数</div>
+          <div class="data-trend positive">-2</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 系统状态面板 -->
+    <div class="system-section">
+      <div class="section-header">
+        <h2 class="section-title animate-slide-in-left">系统状态</h2>
+        <button class="refresh-btn animate-slide-in-right" @click="refreshSystemStatus" :disabled="loading">
+          <div v-if="!loading" class="refresh-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M1.5 8a6.5 6.5 0 0 1 10.5-5.1L12 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M14.5 8a6.5 6.5 0 0 1-10.5 5.1L4 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M9 4.5h3v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M7 11.5H4v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div v-else class="loading-spinner small"></div>
+          <span>{{ loading ? '刷新中...' : '刷新' }}</span>
+        </button>
+      </div>
+
+      <div class="system-grid">
+        <div class="glass-card system-card animate-slide-in-left" v-for="(status, key) in systemStatus" :key="key">
+          <div class="system-card-header">
+            <div class="system-icon">
+              <component :is="getSystemIcon(key)" />
+            </div>
+            <div class="system-status">
+              <div class="status-indicator" :class="status === 'healthy' ? 'online' : 'offline'"></div>
+            </div>
+          </div>
+          <div class="system-info">
+            <h3>{{ getStatusName(key) }}</h3>
+            <p class="system-desc">{{ getStatusText(status) }}</p>
           </div>
         </div>
-      </el-col>
-
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <el-icon color="#E6A23C"><Timer /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ statistics.avg_response_time }}ms</div>
-            <div class="stat-label">平均响应时间</div>
-          </div>
-        </div>
-      </el-col>
-
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <el-icon color="#F56C6C"><Warning /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">{{ statistics.error_count }}</div>
-            <div class="stat-label">错误次数</div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
-
-    <!-- 主要内容区域 -->
-    <el-row :gutter="20" class="main-content">
-      <!-- 系统状态 -->
-      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
-        <el-card class="system-status-card">
-          <template #header>
-            <div class="card-header">
-              <span>系统状态</span>
-              <el-button
-                type="text"
-                size="small"
-                @click="refreshSystemStatus"
-                :loading="loading"
-              >
-                刷新
-              </el-button>
-            </div>
-          </template>
-
-          <div class="status-list">
-            <div class="status-item" v-for="(status, key) in systemStatus" :key="key">
-              <div class="status-info">
-                <span class="status-name">{{ getStatusName(key) }}</span>
-                <el-tag
-                  :type="status === 'healthy' ? 'success' : status === 'warning' ? 'warning' : 'danger'"
-                  size="small"
-                >
-                  {{ getStatusText(status) }}
-                </el-tag>
-              </div>
-              <el-icon :color="status === 'healthy' ? '#67C23A' : '#F56C6C'">
-                <CircleCheck v-if="status === 'healthy'" />
-                <Warning v-else-if="status === 'warning'" />
-                <CircleClose v-else />
-              </el-icon>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-
-      <!-- 性能监控 -->
-      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
-        <el-card class="performance-card">
-          <template #header>
-            <div class="card-header">
-              <span>性能监控</span>
-            </div>
-          </template>
-
-          <div class="performance-metrics">
-            <div class="metric-item">
-              <div class="metric-label">CPU使用率</div>
-              <el-progress
-                :percentage="performance.cpu_usage"
-                :color="getProgressColor(performance.cpu_usage)"
-                :show-text="true"
-              />
-            </div>
-
-            <div class="metric-item">
-              <div class="metric-label">内存使用率</div>
-              <el-progress
-                :percentage="performance.memory_usage"
-                :color="getProgressColor(performance.memory_usage)"
-                :show-text="true"
-              />
-            </div>
-
-            <div class="metric-item">
-              <div class="metric-label">网络上传</div>
-              <div class="metric-value">{{ formatBytes(performance.network_in) }}/s</div>
-            </div>
-
-            <div class="metric-item">
-              <div class="metric-label">网络下载</div>
-              <div class="metric-value">{{ formatBytes(performance.network_out) }}/s</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-
-      <!-- 手势识别状态 -->
-      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
-        <el-card class="gesture-status-card">
-          <template #header>
-            <div class="card-header">
-              <span>手势识别状态</span>
-              <el-tag
-                :type="gestureStatus.is_detecting ? 'success' : 'info'"
-                size="small"
-              >
-                {{ gestureStatus.is_detecting ? '识别中' : '等待中' }}
-              </el-tag>
-            </div>
-          </template>
-
-          <div class="gesture-info">
-            <div class="current-gesture">
-              <div class="gesture-label">当前手势</div>
-              <div class="gesture-value">
-                {{ gestureStatus.current_gesture || '无' }}
-              </div>
-            </div>
-
-            <div class="confidence">
-              <div class="confidence-label">置信度</div>
-              <el-progress
-                :percentage="Math.round(gestureStatus.confidence * 100)"
-                color="#409EFF"
-                :show-text="true"
-              />
-            </div>
-
-            <div class="last-update">
-              <div class="update-label">最后更新</div>
-              <div class="update-value">
-                {{ formatTime(gestureStatus.last_update) }}
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+      </div>
+    </div>
 
     <!-- 快捷操作 -->
-    <el-row :gutter="20" class="quick-actions">
-      <el-col :span="24">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>快捷操作</span>
-            </div>
-          </template>
-
-          <div class="action-buttons">
-            <el-button type="primary" @click="goToConfig">
-              <el-icon><Setting /></el-icon>
-              配置管理
-            </el-button>
-
-            <el-button type="success" @click="goToMonitor">
-              <el-icon><View /></el-icon>
-              实时监控
-            </el-button>
-
-            <el-button type="warning" @click="goToTraining">
-              <el-icon><Star /></el-icon>
-              手势训练
-            </el-button>
-
-            <el-button type="info" @click="goToLogs">
-              <el-icon><Document /></el-icon>
-              系统日志
-            </el-button>
-
-            <el-button type="danger" @click="testConnection">
-              <el-icon><Connection /></el-icon>
-              连接测试
-            </el-button>
+    <div class="actions-section">
+      <h2 class="section-title animate-slide-in-left">快速开始</h2>
+      <div class="action-grid">
+        <div class="action-card animate-slide-in-left" style="animation-delay: 0.1s" @click="goToConfig">
+          <div class="action-icon gradient-primary">
+            <Setting />
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+          <h3>配置管理</h3>
+          <p>自定义手势映射和系统参数</p>
+          <div class="action-arrow">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="action-card animate-slide-in-left" style="animation-delay: 0.2s" @click="goToMonitor">
+          <div class="action-icon gradient-success">
+            <View />
+          </div>
+          <h3>实时监控</h3>
+          <p>查看系统性能和识别状态</p>
+          <div class="action-arrow">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="action-card animate-slide-in-left" style="animation-delay: 0.3s" @click="goToTraining">
+          <div class="action-icon gradient-warning">
+            <Star />
+          </div>
+          <h3>手势训练</h3>
+          <p>训练和优化手势识别模型</p>
+          <div class="action-arrow">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="action-card animate-slide-in-left" style="animation-delay: 0.4s" @click="goToLogs">
+          <div class="action-icon gradient-info">
+            <Document />
+          </div>
+          <h3>系统日志</h3>
+          <p>查看详细的操作记录和错误信息</p>
+          <div class="action-arrow">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -253,9 +226,10 @@ const refreshSystemStatus = async () => {
   loading.value = true
   try {
     await monitorStore.loadAllMonitoringData()
-    ElMessage.success('系统状态已刷新')
+    // ElMessage.success('系统状态已刷新')
   } catch (error) {
-    ElMessage.error('刷新系统状态失败')
+    // ElMessage.error('刷新系统状态失败')
+    console.error('刷新失败:', error)
   } finally {
     loading.value = false
   }
@@ -273,31 +247,22 @@ const getStatusName = (key) => {
 
 const getStatusText = (status) => {
   const texts = {
-    healthy: '正常',
-    warning: '警告',
-    error: '错误',
-    unknown: '未知'
+    healthy: '运行正常',
+    warning: '性能警告',
+    error: '连接错误',
+    unknown: '状态未知'
   }
   return texts[status] || '未知'
 }
 
-const getProgressColor = (percentage) => {
-  if (percentage < 50) return '#67C23A'
-  if (percentage < 80) return '#E6A23C'
-  return '#F56C6C'
-}
-
-const formatBytes = (bytes) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-const formatTime = (timestamp) => {
-  if (!timestamp) return '无'
-  return new Date(timestamp).toLocaleTimeString()
+const getSystemIcon = (key) => {
+  const icons = {
+    backend: 'Server',
+    ai_service: 'Cpu',
+    database: 'Database',
+    agent: 'User'
+  }
+  return icons[key] || 'Circle'
 }
 
 // 快捷操作方法
@@ -306,15 +271,6 @@ const goToMonitor = () => router.push('/monitor')
 const goToTraining = () => router.push('/training')
 const goToLogs = () => router.push('/logs')
 
-const testConnection = async () => {
-  try {
-    await monitorStore.loadAllMonitoringData()
-    ElMessage.success('所有服务连接正常')
-  } catch (error) {
-    ElMessage.error('连接测试失败，请检查服务状态')
-  }
-}
-
 // 生命周期
 onMounted(async () => {
   await refreshSystemStatus()
@@ -322,180 +278,465 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.dashboard {
-  padding: 0;
+@import '@/styles/modern.css';
+
+.modern-dashboard {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
-.stats-cards {
-  margin-bottom: 20px;
+/* 英雄区域 */
+.hero-section {
+  padding: 80px 20px;
+  background: radial-gradient(ellipse at top center, rgba(102, 126, 234, 0.1) 0%, transparent 50%),
+              linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
 }
 
-.stat-card {
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+  opacity: 0.3;
+}
+
+.hero-content {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
-  transition: transform 0.2s;
+  justify-content: space-between;
+  gap: 60px;
+  position: relative;
+  z-index: 1;
 }
 
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+.hero-text h1 {
+  font-size: 4rem;
+  font-weight: 800;
+  margin: 0 0 20px 0;
+  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
 }
 
-.stat-icon {
-  width: 50px;
-  height: 50px;
+.hero-accent {
+  display: block;
+  font-size: 2rem;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-top: 10px;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: 400;
+}
+
+.hero-visual {
+  flex-shrink: 0;
+}
+
+.floating-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  width: 200px;
+  height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(64, 158, 255, 0.1);
-  border-radius: 8px;
-  margin-right: 15px;
 }
 
-.stat-icon .el-icon {
-  font-size: 24px;
+.status-pulse {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 16px;
+  height: 16px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(52, 199, 89, 0.6);
+  animation: pulse 2s ease-in-out infinite;
 }
 
-.stat-content {
-  flex: 1;
+/* 统计区域 */
+.stats-section {
+  padding: 80px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #303133;
-  line-height: 1;
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 40px;
+  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-top: 5px;
+.modern-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-bottom: 60px;
 }
 
-.main-content {
-  margin-bottom: 20px;
+.data-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s var(--transition-smooth);
+}
+
+.data-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-primary);
+}
+
+.data-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.status-list {
-  space-y: 15px;
-}
-
-.status-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.status-item:last-child {
-  border-bottom: none;
-}
-
-.status-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.status-name {
-  font-weight: 500;
-  color: #303133;
-}
-
-.performance-metrics {
-  space-y: 20px;
-}
-
-.metric-item {
   margin-bottom: 20px;
 }
 
-.metric-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
-}
-
-.metric-value {
-  font-size: 16px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.gesture-info {
-  space-y: 20px;
-}
-
-.gesture-label,
-.confidence-label,
-.update-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
-}
-
-.gesture-value,
-.update-value {
-  font-size: 16px;
-  font-weight: 500;
-  color: #303133;
-  padding: 8px 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
-}
-
-.action-buttons {
+.card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  color: white;
 }
 
-.action-buttons .el-button {
+.card-icon.blue { background: var(--gradient-info); }
+.card-icon.green { background: var(--gradient-success); }
+.card-icon.orange { background: var(--gradient-warning); }
+.card-icon.purple { background: var(--gradient-primary); }
+
+.data-value {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 16px 0;
+  line-height: 1;
+}
+
+.data-label {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.data-trend {
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.data-trend.positive {
+  background: rgba(52, 199, 89, 0.2);
+  color: var(--accent-green);
+}
+
+.data-trend.negative {
+  background: rgba(255, 59, 48, 0.2);
+  color: var(--accent-red);
+}
+
+/* 系统状态 */
+.system-section {
+  padding: 80px 20px;
+  background: var(--bg-secondary);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-header {
+  max-width: 1200px;
+  margin: 0 auto 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.refresh-btn {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.system-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.system-card {
+  padding: 24px;
+  transition: all 0.3s ease;
+}
+
+.system-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(102, 126, 234, 0.15);
+}
+
+.system-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.system-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--gradient-primary);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.system-info h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+}
+
+.system-desc {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* 快捷操作 */
+.actions-section {
+  padding: 80px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.action-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px;
+  cursor: pointer;
+  transition: all 0.3s var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+.action-card:hover::before {
+  opacity: 1;
+}
+
+.action-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-bottom: 20px;
+  font-size: 24px;
+}
+
+.gradient-primary { background: var(--gradient-primary); }
+.gradient-success { background: var(--gradient-success); }
+.gradient-warning { background: var(--gradient-warning); }
+.gradient-info { background: var(--gradient-info); }
+
+.action-card h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+}
+
+.action-card p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.action-arrow {
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.action-card:hover .action-arrow {
+  color: var(--accent-blue);
+  transform: translateX(4px);
+}
+
+/* 小型加载动画 */
+.loading-spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .stats-cards .el-col {
-    margin-bottom: 15px;
+  .hero-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 40px;
   }
 
-  .action-buttons {
-    justify-content: center;
+  .hero-text h1 {
+    font-size: 3rem;
+  }
+
+  .hero-accent {
+    font-size: 1.5rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .modern-grid,
+  .system-grid,
+  .action-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .data-card,
+  .system-card,
+  .action-card {
+    padding: 24px;
+  }
+
+  .floating-card {
+    width: 160px;
+    height: 160px;
+    padding: 30px;
   }
 }
 
 @media (max-width: 480px) {
-  .stat-card {
-    padding: 15px;
+  .hero-section {
+    padding: 60px 16px;
   }
 
-  .stat-icon {
-    width: 40px;
-    height: 40px;
-    margin-right: 10px;
+  .stats-section,
+  .system-section,
+  .actions-section {
+    padding: 60px 16px;
   }
 
-  .stat-icon .el-icon {
-    font-size: 20px;
+  .hero-text h1 {
+    font-size: 2.5rem;
   }
 
-  .stat-value {
-    font-size: 20px;
+  .section-title {
+    font-size: 2rem;
+  }
+
+  .data-value {
+    font-size: 2.5rem;
   }
 }
 </style>

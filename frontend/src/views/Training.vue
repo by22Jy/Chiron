@@ -387,6 +387,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useGestureStore } from '@/stores/gesture'
+import { mobileGestureService } from '@/services/mobile'
 import { ElMessage, ElNotification } from 'element-plus'
 
 // 手势识别Store
@@ -785,9 +786,64 @@ const endGame = () => {
   }
 }
 
+// 移动端手势处理
+const initMobileGestures = () => {
+  if (!mobileGestureService.isMobile) return
+
+  // 初始化移动端优化
+  mobileGestureService.setViewport()
+  mobileGestureService.setMobileCSSVariables()
+  mobileGestureService.optimizeMobileInputs()
+
+  // 注册滑动手势 - 切换模式
+  mobileGestureService.on('swipeleft', (gestureData) => {
+    const modes = ['realtime', 'practice', 'game']
+    const currentIndex = modes.indexOf(selectedMode.value)
+    const nextIndex = (currentIndex + 1) % modes.length
+    selectMode(modes[nextIndex])
+    mobileGestureService.vibrate(20)
+  })
+
+  mobileGestureService.on('swiperight', (gestureData) => {
+    const modes = ['realtime', 'practice', 'game']
+    const currentIndex = modes.indexOf(selectedMode.value)
+    const prevIndex = (currentIndex - 1 + modes.length) % modes.length
+    selectMode(modes[prevIndex])
+    mobileGestureService.vibrate(20)
+  })
+
+  // 注册长按手势 - 显示相机选项
+  mobileGestureService.on('longpress', (gestureData, e) => {
+    if (selectedMode.value === 'realtime') {
+      showMobileCameraOptions()
+      mobileGestureService.vibrate(50)
+    }
+  })
+
+  // 初始化触摸手势监听
+  const container = document.querySelector('.modern-training')
+  if (container) {
+    mobileGestureService.init(container)
+  }
+}
+
+// 显示移动端摄像头选项
+const showMobileCameraOptions = () => {
+  ElNotification({
+    title: '摄像头选项',
+    message: '长按功能开发中...',
+    type: 'info',
+    duration: 2000,
+    showClose: false
+  })
+}
+
 // 生命周期
 onMounted(async () => {
   initRealtimeMode()
+
+  // 初始化移动端手势
+  initMobileGestures()
 
   // 初始化手势识别监听
   const unwatchGesture = gestureStore.$subscribe((mutation, state) => {
@@ -796,11 +852,22 @@ onMounted(async () => {
     }
   })
 
+  // 处理屏幕旋转
+  const handleOrientationChange = () => {
+    setTimeout(() => {
+      // 重新计算布局
+      window.dispatchEvent(new Event('resize'))
+    }, 100)
+  }
+
+  mobileGestureService.handleOrientationChange(handleOrientationChange)
+
   // 页面卸载时清理
   onUnmounted(() => {
     unwatchGesture()
     stopCamera()
     gestureStore.disconnect()
+    mobileGestureService.destroy()
   })
 
   // 尝试预连接WebSocket（不启动分析）
@@ -1679,21 +1746,112 @@ onUnmounted(() => {
 }
 
 @media (max-width: 480px) {
+  /* 移动端英雄区域优化 */
+  .hero-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 20px;
+  }
+
   .hero-title {
     font-size: 2rem;
+    line-height: 1.2;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .floating-cards {
+    position: relative;
+    width: 200px;
+    height: 60px;
+  }
+
+  .gesture-preview {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+
+    &:nth-child(1) { top: 0; left: 20px; }
+    &:nth-child(2) { top: 10px; left: 80px; }
+    &:nth-child(3) { top: 0; left: 140px; }
   }
 
   .section-title {
     font-size: 1.5rem;
   }
 
+  /* 移动端模式选择优化 */
+  .mode-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
   .mode-card {
-    padding: 24px;
+    padding: 20px;
+    text-align: center;
   }
 
   .mode-icon {
     width: 48px;
     height: 48px;
+    margin: 0 auto 16px;
+  }
+
+  .mode-card h3 {
+    font-size: 1.25rem;
+  }
+
+  .mode-card p {
+    font-size: 0.875rem;
+    margin-bottom: 16px;
+  }
+
+  /* 移动端实时识别区域优化 */
+  .realtime-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .camera-container,
+  .gesture-panel {
+    padding: 20px;
+  }
+
+  .camera-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .camera-status {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .section-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modern-btn {
+    padding: 12px 16px;
+    font-size: 0.875rem;
+    min-height: 44px; /* 触摸友好的最小高度 */
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  /* 移动端手势识别结果优化 */
+  .current-gesture {
+    padding: 16px;
   }
 
   .gesture-emoji.large {
@@ -1705,21 +1863,186 @@ onUnmounted(() => {
   }
 
   .gesture-emoji.massive {
+    font-size: 4.5rem;
+  }
+
+  .confidence-bar {
+    width: 80px;
+  }
+
+  /* 移动端手势历史优化 */
+  .history-list {
+    gap: 6px;
+  }
+
+  .history-item {
+    padding: 10px 12px;
+  }
+
+  .history-emoji {
+    font-size: 1rem;
+  }
+
+  /* 移动端练习模式优化 */
+  .practice-content {
+    gap: 16px;
+  }
+
+  .gesture-tutorial,
+  .gesture-gallery {
+    padding: 20px;
+  }
+
+  .tutorial-header {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .progress-info {
+    justify-content: center;
+    font-size: 0.8rem;
+  }
+
+  .gesture-showcase {
+    text-align: center;
+  }
+
+  .gesture-demo {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  /* 移动端游戏模式优化 */
+  .game-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .game-stats {
+    justify-content: space-around;
+    width: 100%;
+  }
+
+  .game-stat {
+    flex-direction: column;
+    text-align: center;
+    gap: 4px;
+  }
+
+  .game-board {
+    padding: 20px;
+  }
+
+  .game-challenge {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .target-gesture {
+    padding: 20px;
+  }
+
+  .gesture-emoji.massive {
     font-size: 5rem;
   }
 
-  .tutorial-actions {
+  .game-controls {
+    display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .timer-circle {
-    width: 100px;
-    height: 100px;
+  .modern-btn.large {
+    padding: 16px 24px;
+    min-height: 48px;
   }
 
-  .timer-text {
-    font-size: 1.5rem;
+  /* 移动端排行榜优化 */
+  .leaderboard-list {
+    gap: 8px;
+  }
+
+  .leaderboard-item {
+    padding: 12px 16px;
+  }
+
+  .player-rank {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+
+  .player-info {
+    flex: 1;
+  }
+
+  .player-name {
+    font-size: 0.875rem;
+  }
+
+  .player-score {
+    font-size: 0.875rem;
+  }
+
+  /* 移动端触摸优化 */
+  .mode-card,
+  .glass-card,
+  .modern-btn {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .mode-card:active {
+    transform: scale(0.98);
+  }
+
+  .modern-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* 移动端滚动优化 */
+  .modern-training {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .gesture-gallery,
+  .leaderboard-content {
+    max-height: 300px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 移动端摄像头优化 */
+  .camera-feed {
+    border-radius: 16px;
+  }
+
+  .camera-placeholder {
+    min-height: 200px;
+  }
+}
+
+/* 移动端横屏适配 */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .hero-section {
+    padding: 40px 16px;
+  }
+
+  .hero-content {
+    flex-direction: row;
+  }
+
+  .floating-cards {
+    width: 150px;
+    height: 50px;
+  }
+
+  .gesture-preview {
+    width: 30px;
+    height: 30px;
   }
 }
 

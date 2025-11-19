@@ -31,7 +31,7 @@
         </el-menu-item>
 
         <el-menu-item index="/training">
-          <el-icon><Thumb /></el-icon>
+          <el-icon><Monitor /></el-icon>
           <span>手势训练</span>
         </el-menu-item>
 
@@ -103,7 +103,6 @@ import {
   Monitor,
   Setting,
   View,
-  Thumb,
   Document,
   Connection,
   VideoPlay,

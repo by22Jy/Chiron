@@ -15,7 +15,9 @@
       "Bash(tasklist:*)",
       "Bash(powershell:*)",
       "Bash(pip install:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npm run build:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

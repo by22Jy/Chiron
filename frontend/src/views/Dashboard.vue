@@ -197,7 +197,7 @@
             </el-button>
 
             <el-button type="warning" @click="goToTraining">
-              <el-icon><Thumb /></el-icon>
+              <el-icon><Star /></el-icon>
               手势训练
             </el-button>
 
@@ -231,9 +231,9 @@ import {
   CircleClose,
   Setting,
   View,
-  Thumb,
   Document,
-  Connection
+  Connection,
+  Star
 } from '@element-plus/icons-vue'
 
 const router = useRouter()

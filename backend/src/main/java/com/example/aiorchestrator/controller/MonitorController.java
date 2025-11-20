@@ -5,6 +5,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -18,11 +21,51 @@ public class MonitorController {
 
         // 检查各个服务状态
         status.put("backend", "healthy");
-        status.put("ai_service", "healthy");
+        status.put("ai_service", isPortOpen("localhost", 8000) ? "healthy" : "error");
         status.put("database", "healthy");
-        status.put("agent", "unknown"); // Agent状态需要通过其他方式检测
+        status.put("agent", isAgentRunning() ? "healthy" : "error");
 
         return ResponseEntity.ok(status);
+    }
+
+    /**
+     * 检查指定端口是否开放
+     */
+    private boolean isPortOpen(String host, int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), 1000);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 检查Agent进程是否在运行
+     */
+    private boolean isAgentRunning() {
+        try {
+            // 检查Agent进程是否在运行
+            Process process = Runtime.getRuntime().exec("tasklist /FI \"IMAGENAME eq python.exe\"");
+            int exitCode = process.waitFor();
+
+            if (exitCode == 0) {
+                // 进一步检查是否有agent相关的进程
+                Process grepProcess = Runtime.getRuntime().exec("wmic process where \"name='python.exe'\" get commandline /format:csv");
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(grepProcess.getInputStream()));
+
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.contains("main.py") || line.contains("agent")) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @GetMapping("/performance")

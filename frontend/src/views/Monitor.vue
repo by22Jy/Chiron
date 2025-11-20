@@ -36,7 +36,7 @@
           <div class="status-content">
             <div class="status-title">响应时间</div>
             <div class="status-value">{{ statistics.avg_response_time }}ms</div>
-            <div class="status-detail">成功率: {{ (statistics.success_rate * 100).toFixed(1) }}%</div>
+            <div class="status-detail">成功率: {{ (statistics.success_rate).toFixed(1) }}%</div>
           </div>
         </el-card>
       </el-col>
@@ -189,7 +189,7 @@
             </div>
 
             <div class="stat-item">
-              <div class="stat-number">{{ (statistics.success_rate * 100).toFixed(1) }}%</div>
+              <div class="stat-number">{{ (statistics.success_rate).toFixed(1) }}%</div>
               <div class="stat-label">成功率</div>
             </div>
           </div>
@@ -342,8 +342,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+@import '@/styles/modern.css';
+
 .monitor-page {
   padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
 }
 
 .status-overview {
@@ -354,12 +359,18 @@ onUnmounted(() => {
   height: 120px;
   display: flex;
   align-items: center;
-  transition: transform 0.2s;
+  transition: all var(--transition-smooth);
+  background: var(--glass-bg);
+  backdrop-filter: blur(15px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .status-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--glass-shadow-hover);
+  border-color: var(--border-accent);
 }
 
 .status-icon {
@@ -372,32 +383,32 @@ onUnmounted(() => {
 
 .status-title {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 5px;
 }
 
 .status-value {
   font-size: 20px;
   font-weight: bold;
-  color: #303133;
+  color: var(--text-primary);
   margin-bottom: 5px;
 }
 
 .status-detail {
   font-size: 12px;
-  color: #C0C4CC;
+  color: var(--text-muted);
 }
 
 .status-healthy {
-  border-left: 4px solid #67C23A;
+  border-left: 4px solid var(--accent-success);
 }
 
 .status-warning {
-  border-left: 4px solid #E6A23C;
+  border-left: 4px solid var(--accent-warning);
 }
 
 .status-error {
-  border-left: 4px solid #F56C6C;
+  border-left: 4px solid var(--accent-danger);
 }
 
 .monitor-details {
@@ -413,7 +424,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 15px 0;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .service-item:last-child {
@@ -427,27 +438,27 @@ onUnmounted(() => {
 .service-name {
   font-size: 16px;
   font-weight: 500;
-  color: #303133;
+  color: var(--text-primary);
   margin-bottom: 5px;
 }
 
 .service-status-text {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .status-icon-healthy {
-  color: #67C23A;
+  color: var(--accent-success);
   font-size: 20px;
 }
 
 .status-icon-warning {
-  color: #E6A23C;
+  color: var(--accent-warning);
   font-size: 20px;
 }
 
 .status-icon-error {
-  color: #F56C6C;
+  color: var(--accent-danger);
   font-size: 20px;
 }
 
@@ -468,13 +479,13 @@ onUnmounted(() => {
 
 .metric-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .metric-value {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .network-metrics {
@@ -488,7 +499,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .gesture-status {
@@ -501,7 +512,7 @@ onUnmounted(() => {
 
 .gesture-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
   margin-bottom: 10px;
 }
 
@@ -525,7 +536,7 @@ onUnmounted(() => {
 }
 
 .info-label {
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .statistics-info {
@@ -542,13 +553,13 @@ onUnmounted(() => {
 .stat-number {
   font-size: 24px;
   font-weight: bold;
-  color: #409EFF;
+  color: var(--accent-primary);
   margin-bottom: 5px;
 }
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .refresh-actions {

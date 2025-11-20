@@ -519,8 +519,8 @@ onMounted(async () => {
 /* 配置英雄区域 */
 .config-hero {
   padding: 80px 20px 60px;
-  background: radial-gradient(ellipse at bottom, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: radial-gradient(ellipse at bottom, rgba(102, 126, 234, 0.05) 0%, transparent 70%);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .hero-content {
@@ -534,13 +534,11 @@ onMounted(async () => {
 
 .hero-title {
   font-size: 3.5rem;
-  font-weight: 800;
+  font-weight: 700;
   margin: 0 0 20px 0;
-  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
   line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .hero-subtitle {
@@ -579,12 +577,10 @@ onMounted(async () => {
 
 .section-title {
   font-size: 2rem;
-  font-weight: 700;
+  font-weight: 600;
   margin: 0;
-  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .section-actions {
@@ -644,14 +640,14 @@ onMounted(async () => {
 /* 标签页容器 */
 .tabs-container {
   padding: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-surface);
 }
 
 .modern-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .tab-item {
@@ -668,7 +664,7 @@ onMounted(async () => {
 }
 
 .tab-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg-light);
   color: var(--text-primary);
 }
 
@@ -778,7 +774,7 @@ onMounted(async () => {
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg-light);
   color: var(--text-primary);
   transform: scale(1.1);
 }
@@ -814,7 +810,7 @@ onMounted(async () => {
 }
 
 .gesture-action {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg);
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 16px;
@@ -990,7 +986,7 @@ onMounted(async () => {
 }
 
 .input-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg-light);
 }
 
 .input-btn:first-child {
@@ -1070,7 +1066,7 @@ onMounted(async () => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-bg-light);
   color: var(--text-primary);
 }
 

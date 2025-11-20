@@ -59,7 +59,7 @@
             </div>
             <div class="status-indicator online"></div>
           </div>
-          <div class="data-value">{{ (statistics.success_rate * 100).toFixed(1) || 98.7 }}%</div>
+          <div class="data-value">{{ (statistics.success_rate).toFixed(1) || 98.7 }}%</div>
           <div class="data-label">识别成功率</div>
           <div class="data-trend positive">+2.3%</div>
         </div>
@@ -289,9 +289,9 @@ onMounted(async () => {
 /* 英雄区域 */
 .hero-section {
   padding: 80px 20px;
-  background: radial-gradient(ellipse at top center, rgba(102, 126, 234, 0.1) 0%, transparent 50%),
+  background: radial-gradient(ellipse at top center, rgba(102, 126, 234, 0.05) 0%, transparent 50%),
               linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
   position: relative;
   overflow: hidden;
 }
@@ -320,23 +320,24 @@ onMounted(async () => {
 
 .hero-text h1 {
   font-size: 4rem;
-  font-weight: 800;
+  font-weight: 700;
   margin: 0 0 20px 0;
-  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
   line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .hero-accent {
   display: block;
   font-size: 2rem;
+  font-weight: 400;
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin-top: 10px;
+  letter-spacing: 0.01em;
 }
 
 .hero-subtitle {
@@ -344,6 +345,8 @@ onMounted(async () => {
   color: var(--text-secondary);
   margin: 0;
   font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 1.4;
 }
 
 .hero-visual {
@@ -386,12 +389,11 @@ onMounted(async () => {
 
 .section-title {
   font-size: 2.5rem;
-  font-weight: 700;
+  font-weight: 600;
   margin-bottom: 40px;
-  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .modern-grid {
@@ -402,14 +404,16 @@ onMounted(async () => {
 }
 
 .data-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: var(--glass-bg);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
   border-radius: 20px;
   padding: 32px;
   position: relative;
   overflow: hidden;
   transition: all 0.3s var(--transition-smooth);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
 }
 
 .data-card::before {
@@ -424,8 +428,8 @@ onMounted(async () => {
 
 .data-card:hover {
   transform: translateY(-8px);
-  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
-  border-color: rgba(102, 126, 234, 0.3);
+  box-shadow: var(--glass-shadow-hover);
+  border-color: var(--border-accent);
 }
 
 .card-header {
@@ -452,13 +456,11 @@ onMounted(async () => {
 
 .data-value {
   font-size: 3rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #ffffff 0%, #a0a0a0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-weight: 700;
+  color: var(--text-primary);
   margin: 16px 0;
   line-height: 1;
+  letter-spacing: -0.01em;
 }
 
 .data-label {

@@ -27,17 +27,26 @@ YOLO-LLM 是一个基于AI的手势控制平台，结合计算机视觉、机器
 - 支持8种手势：POINT_UP、THUMBS_UP、VICTORY、OK_SIGN等
 - 基于MediaPipe的实时检测
 - 可配置检测间隔和置信度
+- 支持静态手势和动态滑动识别
 
 ### 🎮 动作执行
 - 7种动作类型：热键、鼠标、点击、滚动、文本、窗口、系统
 - 跨平台支持（Windows/Linux/Mac）
 - 可扩展的动作框架
+- 智能动作映射和配置
 
 ### 🤖 AI能力
-- YOLOv8物体检测
-- 姿态估计和人员跟踪
+- YOLOv8物体检测和跟踪
+- MediaPipe姿态估计
 - DeepFace情感识别
 - WebSocket实时流处理
+- 多模态数据分析
+
+### 🎨 现代化界面
+- 响应式Vue.js前端
+- 实时性能监控仪表盘
+- 现代化白色主题UI
+- 丰富的数据可视化
 
 ## 快速开始
 
@@ -167,84 +176,150 @@ video:
 - `GET /api/config` - 获取手势映射配置
 - `POST /api/audit/log` - 记录手势执行日志
 - `POST /api/event` - 发送事件
+- `GET /api/monitor/*` - 系统监控接口
 
 ### AI服务接口 (端口: 8000)
 - `POST /detect/file` - 物体检测（文件上传）
 - `POST /analyze/file` - 综合分析（检测+姿态+手势+情感）
 - `GET /ws/analyze` - WebSocket实时分析流
 
+## 手势类型
+
+### 静态手势
+```python
+# 支持的手势代码
+POINT_UP = "point_up"        # 👆 指向上方
+THUMBS_UP = "thumbs_up"      # 👍 点赞
+VICTORY = "victory"          # ✌️ 胜利手势
+OK_SIGN = "ok_sign"          # 👌 OK手势
+ROCK_SIGN = "rock_sign"      # 🤘 摇滚手势
+CALL_ME = "call_me"          # 🤙 打电话
+PALM = "palm"                # ✋ 手掌
+FIST = "fist"                # ✊ 拳头
+```
+
+### 动态手势
+```python
+# 支持的动态手势
+SWIPE_UP = "swipe_up"        # 向上滑动
+SWIPE_DOWN = "swipe_down"    # 向下滑动
+SWIPE_LEFT = "swipe_left"    # 向左滑动
+SWIPE_RIGHT = "swipe_right"  # 向右滑动
+```
+
+## 动作类型
+```python
+# 支持的动作类型
+hotkey  # 热键组合 (Ctrl+C, Alt+Tab等)
+mouse   # 鼠标移动和定位
+click   # 鼠标点击 (左键/右键/中键)
+scroll  # 鼠标滚动 (向上/向下)
+text    # 文本输入和键盘输入
+window  # 窗口操作 (最大化/最小化/关闭)
+system  # 系统命令 (音量控制/锁屏等)
+```
+
 ## 开发说明
 
 ### 项目结构
 ```
 yolo-llm/
-├── backend/          # Spring Boot后端
+├── backend/          # Spring Boot后端服务
+│   ├── src/         # Java源代码
+│   └── pom.xml      # Maven配置
 ├── ai/              # FastAPI AI服务
+│   ├── main.py      # FastAPI应用入口
+│   └── requirements.txt
 ├── agent/           # Python手势控制Agent
-├── frontend/        # Vue.js前端
-├── start-all.bat    # Windows启动脚本
-├── start-all.sh     # Linux/Mac启动脚本
-└── stop-all.sh      # 停止脚本
+│   ├── main.py      # Agent主程序
+│   ├── config.yaml  # Agent配置文件
+│   └── requirements.txt
+├── frontend/        # Vue.js前端应用
+│   ├── src/        # Vue源代码
+│   ├── package.json
+│   └── vite.config.js
+├── start-all.bat    # Windows一键启动脚本
+├── start-all.sh     # Linux/Mac一键启动脚本
+├── stop-all.sh      # 停止服务脚本
+└── README.md        # 项目说明文档
 ```
 
-### 手势类型
-```python
-# 支持的手势代码
-POINT_UP = "point_up"
-THUMBS_UP = "thumbs_up"
-VICTORY = "victory"
-OK_SIGN = "ok_sign"
-ROCK_SIGN = "rock_sign"
-CALL_ME = "call_me"
-PALM = "palm"
-FIST = "fist"
-```
-
-### 动作类型
-```python
-# 支持的动作类型
-hotkey  # 热键组合
-mouse   # 鼠标移动
-click   # 鼠标点击
-scroll  # 鼠标滚动
-text    # 文本输入
-window  # 窗口操作
-system  # 系统命令
-```
+### 技术栈
+- **Backend**: Spring Boot, MySQL, WebSocket
+- **AI Service**: FastAPI, MediaPipe, YOLO, DeepFace
+- **Agent**: OpenCV, PyAutoGUI, MediaPipe
+- **Frontend**: Vue.js 3, Element Plus, ECharts
+- **Database**: MySQL 5.7+
 
 ## 故障排除
 
 ### 常见问题
 
 1. **摄像头无法访问**
-   - 检查摄像头权限
-   - 修改config.yaml中的camera_id（尝试0或1）
+   - 检查摄像头权限和设备状态
+   - 修改config.yaml中的camera_id（尝试0、1、2等）
+   - 确认没有其他应用占用摄像头
 
 2. **模型加载失败**
    - 确保网络连接正常（首次运行会下载YOLO模型）
-   - 检查ultralytics包是否正确安装
+   - 检查ultralytics和mediapipe包是否正确安装
+   - 尝试手动下载模型文件到models/目录
 
 3. **后端连接失败**
    - 确认后端服务在8080端口正常运行
-   - 检查数据库连接配置
+   - 检查数据库连接配置和数据库服务状态
+   - 查看后端日志确认具体错误信息
 
-4. **CORS错误**
-   - 检查FastAPI的CORS配置
-   - 确认前端请求地址正确
+4. **CORS跨域错误**
+   - 检查FastAPI的CORS中间件配置
+   - 确认前端请求地址和端口正确
+   - 检查防火墙和网络配置
+
+5. **手势识别精度低**
+   - 调整config.yaml中的detection_interval参数
+   - 确保光线充足且手势清晰可见
+   - 检查摄像头分辨率和帧率设置
 
 ### 日志查看
-- Backend: 控制台输出
-- AI Service: 控制台输出或 `ai.log`
-- Frontend: 浏览器开发者工具
-- Agent: 控制台输出
+- **Backend**: 控制台输出或日志文件
+- **AI Service**: 控制台输出或 `ai.log`
+- **Frontend**: 浏览器开发者工具Console面板
+- **Agent**: 控制台输出
+
+### 性能优化建议
+- 使用GPU加速模型推理（安装CUDA版本的PyTorch）
+- 调整视频分辨率和帧率以平衡性能和精度
+- 启用模型缓存减少重复加载时间
+- 优化网络请求和WebSocket连接
 
 ## 贡献指南
 
-1. Fork项目
-2. 创建功能分支
-3. 提交更改
-4. 发起Pull Request
+1. Fork项目到个人仓库
+2. 创建功能分支: `git checkout -b feature/new-feature`
+3. 提交更改: `git commit -m 'Add new feature'`
+4. 推送分支: `git push origin feature/new-feature`
+5. 发起Pull Request
+
+### 开发规范
+- 遵循现有代码风格和架构设计
+- 添加适当的注释和文档
+- 编写单元测试和集成测试
+- 确保所有测试通过后再提交
 
 ## 许可证
 
 本项目采用MIT许可证，详见[LICENSE](LICENSE)文件。
+
+## 更新日志
+
+### v1.0.0 (最新)
+- ✅ 完成基础手势识别和动作执行
+- ✅ 集成MediaPipe和YOLO模型
+- ✅ 实现现代化Vue.js前端界面
+- ✅ 添加实时监控和性能分析
+- ✅ 支持Windows/Linux/Mac跨平台
+- ✅ 完整的API文档和使用说明
+
+---
+
+**开始使用YOLO-LLM，体验下一代手势交互技术！** 🚀

@@ -15,7 +15,7 @@
             </defs>
           </svg>
         </div>
-        <span class="brand-text">YOLO-LLM</span>
+        <span class="brand-text">Chrion</span>
       </div>
 
       <div class="nav-menu">

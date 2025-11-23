@@ -18,7 +18,10 @@
       "Bash(dir:*)",
       "Bash(npm run build:*)",
       "Bash(cat:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(start-all.bat:*)",
+      "Bash(mvn:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

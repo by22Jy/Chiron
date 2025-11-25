@@ -54,6 +54,11 @@ start "YOLO-LLM Frontend" cmd /c "npm run dev"
 timeout /t 5 /nobreak
 
 echo.
+echo 安装Agent依赖...
+cd /d "%~dp0agent"
+pip install -r requirements.txt -q
+
+echo.
 echo ===================================
 echo       所有服务启动完成
 echo ===================================
@@ -61,10 +66,34 @@ echo 后端API: http://localhost:8080
 echo AI服务:  http://localhost:8000
 echo 前端界面: http://localhost:5173
 echo.
-echo Agent手动启动命令：
-echo   cd agent
-echo   pip install -r requirements.txt
+echo Agent启动选项：
+echo.
+echo 1. 手势+语音实时控制 (推荐)
 echo   python main.py --realtime
+echo.
+echo 2. 纯语音控制 (避免依赖冲突)
+echo   python voice_simple_final.py
+echo.
+echo 3. 手势分析测试
+echo   python main.py --analyze-gesture
+echo.
+echo 4. 智能对话模式
+echo   python main.py --chat
+echo.
+echo 是否自动启动语音控制? (y/n)
+set /p choice=
+if /i "%choice%"=="y" (
+    echo.
+    echo 启动语音控制Agent...
+    cd /d "%~dp0agent"
+    start "YOLO-LLM Voice Agent" cmd /c "python voice_simple_final.py"
+    timeout /t 3 /nobreak
+    echo [成功] 语音控制Agent已启动
+) else (
+    echo.
+    echo Agent未自动启动，您可以手动选择上述任一模式
+)
+
 echo.
 echo 按任意键关闭此窗口...
 pause >nul

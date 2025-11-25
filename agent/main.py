@@ -15,6 +15,15 @@ from gestures.mediapipe_detector import GestureResult
 from actions.executor import get_supported_actions
 from logger_config import setup_component_logger
 
+# Import new AI features
+try:
+    from speech_controller import VoiceController, VoiceCommand
+    from gesture_analyzer import GestureAnalyzer, GestureAnalysis
+    AI_FEATURES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f'AI features not available: {e}')
+    AI_FEATURES_AVAILABLE = False
+
 try:
     import pyautogui  # type: ignore
 except Exception:  # pragma: no cover
@@ -54,12 +63,26 @@ class GestureAgent:
         self.video_processor: Optional[VideoProcessor] = None
         self.running = False
         self.should_stop = threading.Event()
-        
+
+        # AI Features
+        self.voice_controller: Optional[VoiceController] = None
+        self.gesture_analyzer: Optional[GestureAnalyzer] = None
+
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         if hasattr(signal, 'SIGBREAK'):
             signal.signal(signal.SIGBREAK, self._signal_handler)
+
+        # Initialize AI features if available
+        if AI_FEATURES_AVAILABLE:
+            try:
+                self.voice_controller = VoiceController(config.base_url)
+                self.gesture_analyzer = GestureAnalyzer(config.base_url)
+                logger.info('🤖 AI features initialized successfully')
+            except Exception as e:
+                logger.warning(f'Failed to initialize AI features: {e}')
+                AI_FEATURES_AVAILABLE = False
     
     def _signal_handler(self, signum, frame):
         logger.info('Received signal %d, shutting down...', signum)
@@ -277,18 +300,77 @@ class GestureAgent:
             message=message
         )
     
+    def start_voice_control(self):
+        """启动语音控制"""
+        if not AI_FEATURES_AVAILABLE or not self.voice_controller:
+            logger.warning('Voice control not available')
+            return False
+
+        try:
+            # 设置语音命令回调
+            self.voice_controller.on_command_detected = self._on_voice_command
+            self.voice_controller.on_speech_text = self._on_speech_text
+
+            # 启动语音监听
+            self.voice_controller.start_listening()
+            logger.info('🎤 Voice control started')
+            return True
+        except Exception as e:
+            logger.error(f'Failed to start voice control: {e}')
+            return False
+
+    def stop_voice_control(self):
+        """停止语音控制"""
+        if self.voice_controller:
+            self.voice_controller.stop_listening()
+            logger.info('🔇 Voice control stopped')
+
+    def analyze_gesture_intent(self, gesture_result: GestureResult, context: str = "") -> Optional[GestureAnalysis]:
+        """分析手势意图"""
+        if not AI_FEATURES_AVAILABLE or not self.gesture_analyzer:
+            logger.warning('Gesture analysis not available')
+            return None
+
+        try:
+            analysis = self.gesture_analyzer.analyze_gesture(gesture_result, context)
+            if analysis:
+                logger.info(f'✨ Gesture analysis: {analysis.intent}')
+            return analysis
+        except Exception as e:
+            logger.error(f'Failed to analyze gesture: {e}')
+            return None
+
+    def _on_voice_command(self, command: VoiceCommand):
+        """处理语音命令"""
+        logger.info(f'🎤 Voice command: {command.command_type} - {command.parameters}')
+        self.send_event('voice_command', {
+            'command_type': command.command_type,
+            'parameters': command.parameters,
+            'confidence': command.confidence,
+            'raw_text': command.raw_text
+        })
+
+    def _on_speech_text(self, text: str):
+        """处理识别到的语音文本"""
+        logger.info(f'🎤 Speech recognized: {text}')
+        self.send_event('speech_recognized', {'text': text})
+
     def stop(self):
         if not self.running:
             return
-        
+
         logger.info('Stopping gesture agent...')
         self.running = False
         self.should_stop.set()
-        
+
+        # Stop video processor
         if self.video_processor:
             self.video_processor.stop()
             self.video_processor = None
-        
+
+        # Stop voice control
+        self.stop_voice_control()
+
         logger.info('Gesture agent stopped')
     
     def list_supported_actions(self):
@@ -340,10 +422,13 @@ def main():
     parser.add_argument('--gesture', help='Single gesture code to execute once')
     parser.add_argument('--event', help='Send an eventType to /api/event')
     parser.add_argument('--actions', action='store_true', help='List supported action types')
+    parser.add_argument('--voice', action='store_true', help='Enable voice control')
+    parser.add_argument('--analyze-gesture', help='Analyze gesture intent (gesture_code)')
+    parser.add_argument('--chat', help='Chat with AI assistant')
     args = parser.parse_args()
     
     # Default to realtime if no mode specified
-    if not any([args.sync, args.watch, args.realtime, args.daemon, args.gesture, args.event, args.actions]):
+    if not any([args.sync, args.watch, args.realtime, args.daemon, args.gesture, args.event, args.actions, args.voice, args.analyze_gesture, args.chat]):
         args.realtime = True
     
     cfg = load_config(Path(args.config))
@@ -370,11 +455,78 @@ def main():
         
         if args.gesture:
             agent.perform_action(args.gesture)
-        
-        if args.watch or (not args.sync and not args.gesture and not args.event and not args.realtime and not args.daemon):
+
+        if args.voice:
+            if not agent.start_voice_control():
+                logger.error('Failed to start voice control')
+                sys.exit(1)
+            logger.info('Voice control enabled. Press Ctrl+C to stop.')
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                logger.info('Stopping voice control...')
+
+        if args.analyze_gesture:
+            if not AI_FEATURES_AVAILABLE:
+                logger.error('AI features not available')
+                sys.exit(1)
+
+            from gestures.mediapipe_detector import GestureResult
+            # Create a dummy gesture result for analysis
+            gesture_result = GestureResult(
+                gesture_code=args.analyze_gesture,
+                confidence=0.9,
+                bbox=(100, 100, 100, 100)
+            )
+
+            analysis = agent.analyze_gesture_intent(gesture_result)
+            if analysis:
+                print(f"\n🎭 手势分析结果:")
+                print(f"手势: {analysis.gesture_code.upper()}")
+                print(f"意图: {analysis.intent}")
+                print(f"情感: {analysis.emotion}")
+                print(f"上下文: {analysis.context}")
+                print(f"建议: {', '.join(analysis.suggestions)}")
+                print(f"\n🤖 AI回应: {analysis.response_text}")
+            else:
+                logger.error('Failed to analyze gesture')
+
+        if args.chat:
+            if not AI_FEATURES_AVAILABLE:
+                logger.error('AI features not available')
+                sys.exit(1)
+
+            print(f"\n💬 AI助手 - 您可以说 '退出' 或 'exit' 来结束对话")
+            print(f"您: {args.chat}")
+
+            try:
+                response = requests.post(
+                    f"{agent.config.base_url}/api/llm/chat",
+                    json={
+                        "message": args.chat,
+                        "context": "用户通过命令行启动对话"
+                    },
+                    timeout=15
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"AI: {result.get('response', '无法回应')}")
+                else:
+                    print(f"AI: 对话服务暂时不可用")
+
+            except Exception as e:
+                logger.error(f"Chat failed: {e}")
+                print(f"AI: 对话服务出现错误")
+
+        if args.watch or (not args.sync and not args.gesture and not args.event and not args.realtime and not args.daemon and not args.voice and not args.analyze_gesture and not args.chat):
             interactive_loop(agent)
         elif args.realtime:
+            # Start with both gesture detection and voice control
             agent.start_realtime()
+            if AI_FEATURES_AVAILABLE and args.voice:
+                agent.start_voice_control()
         elif args.daemon:
             agent.start_daemon()
             

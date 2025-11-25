@@ -33,6 +33,14 @@ from logger_config import setup_component_logger
 
 logger = setup_component_logger("speech")
 
+# 智能电脑控制
+try:
+    from intelligent_controller import IntelligentController
+    INTELLIGENT_CONTROL_AVAILABLE = True
+except ImportError:
+    logger.warning("智能控制器不可用，将使用传统命令解析")
+    INTELLIGENT_CONTROL_AVAILABLE = False
+
 
 @dataclass
 class VoiceCommand:
@@ -46,7 +54,7 @@ class VoiceCommand:
 class VoiceController:
     """语音控制器主类"""
 
-    def __init__(self, backend_url: str = "http://127.0.0.1:8080"):
+    def __init__(self, backend_url: str = "http://127.0.0.1:8080", enable_intelligent_control: bool = True):
         self.backend_url = backend_url
         self.recognizer = sr.Recognizer()
         self.microphone = None
@@ -61,6 +69,20 @@ class VoiceController:
         # 线程管理
         self.listening_thread = None
         self.processing_thread = None
+
+        # 智能电脑控制器
+        self.enable_intelligent_control = enable_intelligent_control and INTELLIGENT_CONTROL_AVAILABLE
+        self.intelligent_controller = None
+
+        if self.enable_intelligent_control:
+            try:
+                self.intelligent_controller = IntelligentController(backend_url)
+                logger.info("🧠 智能电脑控制器已启用")
+            except Exception as e:
+                logger.warning(f"启用智能控制器失败: {e}")
+                self.enable_intelligent_control = False
+        else:
+            logger.info("使用传统语音命令解析模式")
 
         # 语音识别设置
         self.recognizer.dynamic_energy_threshold = True
@@ -200,6 +222,38 @@ class VoiceController:
         """解析语音命令"""
         text_lower = text.lower().strip()
 
+        # 优先使用智能电脑控制
+        if self.enable_intelligent_control and self.intelligent_controller:
+            try:
+                # 对于复杂的自然语言请求，使用LLM智能分析
+                complex_keywords = ["帮我", "请", "能不能", "可不可以", "我想", "我要", "搜索", "查找", "启动", "运行", "打开", "关闭", "调节", "设置", "配置"]
+
+                if any(keyword in text_lower for keyword in complex_keywords):
+                    logger.info(f"🧠 使用智能控制处理复杂命令: '{text}'")
+
+                    # 调用智能控制器
+                    result = self.intelligent_controller.process_natural_language(text)
+
+                    if result.get('success'):
+                        action = result.get('action', {})
+                        return VoiceCommand(
+                            command_type="intelligent_control",
+                            parameters={
+                                "action": action,
+                                "result": result
+                            },
+                            confidence=action.get('confidence', 0.8),
+                            raw_text=text
+                        )
+                    else:
+                        logger.warning(f"智能控制失败: {result.get('error', '未知错误')}")
+                        # 继续使用传统解析
+
+            except Exception as e:
+                logger.error(f"智能控制处理失败: {e}")
+                # 继续使用传统解析
+
+        # 传统命令解析（向后兼容）
         # 滑动命令
         if any(keyword in text_lower for keyword in ["左滑", "向左滑", "往左滑"]):
             return VoiceCommand(
@@ -307,7 +361,19 @@ class VoiceController:
     def _execute_command(self, command: VoiceCommand):
         """执行语音命令"""
         try:
-            if command.command_type == "swipe":
+            if command.command_type == "intelligent_control":
+                # 智能控制已经在解析阶段执行了，这里只需要记录结果
+                result = command.parameters.get('result', {})
+                action = result.get('action', {})
+                logger.info(f"✅ 智能控制执行成功: {action.get('description', '未知操作')}")
+
+                # 可以在这里添加成功反馈，比如语音播报
+                if result.get('success'):
+                    logger.info(f"🎯 操作完成: {action.get('description', '')}")
+                else:
+                    logger.warning(f"⚠️ 操作失败: {result.get('error', '未知错误')}")
+
+            elif command.command_type == "swipe":
                 self._execute_swipe(command.parameters)
             elif command.command_type == "open":
                 self._execute_open(command.parameters)

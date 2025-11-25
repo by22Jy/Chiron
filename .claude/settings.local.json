@@ -21,7 +21,10 @@
       "Bash(npm install:*)",
       "Bash(start-all.bat:*)",
       "Bash(mvn:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(chmod:*)",
+      "Bash(touch:*)",
+      "Bash(./start-voice-only.sh:*)"
     ],
     "deny": [],
     "ask": []

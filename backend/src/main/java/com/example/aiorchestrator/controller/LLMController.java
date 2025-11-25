@@ -1,5 +1,7 @@
 package com.example.aiorchestrator.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,8 +14,10 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/llm")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"}, allowCredentials = "true")
 public class LLMController {
+
+    private static final Logger logger = LoggerFactory.getLogger(LLMController.class);
 
     @Autowired
     private com.example.aiorchestrator.service.AiOrchestratorService aiOrchestratorService;
@@ -101,30 +105,39 @@ public class LLMController {
     public ResponseEntity<Map<String, Object>> chat(
             @RequestBody Map<String, Object> request) {
 
+        logger.info("收到聊天请求: {}", request);
+
         String message = (String) request.get("message");
         String context = (String) request.get("context");
         String conversationHistory = (String) request.get("history");
 
+        logger.info("提取参数 - Message: {}, Context: {}, History: {}", message, context, conversationHistory);
+
         try {
             // 构建对话提示词
             String prompt = buildChatPrompt(message, context, conversationHistory);
+            logger.info("构建的提示词: {}", prompt);
 
             // 调用LLM进行对话
             String llmResponse = aiOrchestratorService.orchestrateByUrl("", prompt);
+            logger.info("LLM响应: {}", llmResponse);
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
             result.put("response", llmResponse);
             result.put("timestamp", System.currentTimeMillis());
 
+            logger.info("成功响应: {}", result);
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
+            logger.error("聊天处理失败", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", e.getMessage());
             errorResponse.put("response", "智能对话暂时不可用");
 
+            logger.info("错误响应: {}", errorResponse);
             return ResponseEntity.status(500).body(errorResponse);
         }
     }

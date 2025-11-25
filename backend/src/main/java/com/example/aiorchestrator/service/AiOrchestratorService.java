@@ -1,5 +1,7 @@
 package com.example.aiorchestrator.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.core.io.ByteArrayResource;
@@ -15,6 +17,7 @@ import java.util.*;
 @Service
 public class AiOrchestratorService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AiOrchestratorService.class);
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${ai.yolo.url-detect-file}") private String yoloDetectFileUrl;
@@ -29,6 +32,10 @@ public class AiOrchestratorService {
     @Value("${ai.llm.qwen.api-key}") private String qwenKey;
     @Value("${ai.llm.qwen.model}")  private String qwenModel;
 
+    @Value("${ai.llm.glm.api-url}") private String glmUrl;
+    @Value("${ai.llm.glm.api-key}") private String glmKey;
+    @Value("${ai.llm.glm.model}")  private String glmModel;
+
     public String orchestrate(MultipartFile image, String question) {
         List<String> objects = callYoloWithFile(image);
         String prompt = buildPrompt(objects, question);
@@ -36,6 +43,12 @@ public class AiOrchestratorService {
     }
 
     public String orchestrateByUrl(String imageUrl, String question) {
+        // 如果没有图片URL，直接调用LLM
+        if (imageUrl == null || imageUrl.trim().isEmpty()) {
+            logger.info("没有图片URL，直接调用LLM");
+            return callLlm(question);
+        }
+
         List<String> objects = callYoloWithUrl(imageUrl);
         String prompt = buildPrompt(objects, question);
         return callLlm(prompt);
@@ -76,6 +89,10 @@ public class AiOrchestratorService {
     private String callLlm(String prompt) {
         if ("kimi".equalsIgnoreCase(provider)) {
             return callOpenAICompat(kimiUrl, kimiKey, kimiModel, prompt);
+        } else if ("qwen".equalsIgnoreCase(provider)) {
+            return callOpenAICompat(qwenUrl, qwenKey, qwenModel, prompt);
+        } else if ("glm".equalsIgnoreCase(provider)) {
+            return callGLM(glmUrl, glmKey, glmModel, prompt);
         } else {
             return callOpenAICompat(qwenUrl, qwenKey, qwenModel, prompt);
         }
@@ -91,6 +108,43 @@ public class AiOrchestratorService {
         );
         ResponseEntity<Map> resp = restTemplate.postForEntity(url, new HttpEntity<>(body, h), Map.class);
         return parseOpenAIStyle(resp.getBody());
+    }
+
+    private String callGLM(String url, String apiKey, String model, String prompt) {
+        logger.info("开始调用GLM API");
+        logger.info("URL: {}", url);
+        logger.info("Model: {}", model);
+        logger.info("API Key: {}", apiKey != null ? apiKey.substring(0, Math.min(10, apiKey.length())) + "***" : "null");
+        logger.info("Prompt: {}", prompt);
+
+        try {
+            HttpHeaders h = new HttpHeaders();
+            h.setContentType(MediaType.APPLICATION_JSON);
+            h.set("Authorization", "Bearer " + apiKey);
+
+            Map<String, Object> body = Map.of(
+                    "model", model,
+                    "messages", List.of(Map.of("role", "user", "content", prompt)),
+                    "max_tokens", 65536,
+                    "temperature", 0.7
+            );
+
+            logger.info("请求体: {}", body);
+
+            ResponseEntity<Map> resp = restTemplate.postForEntity(url, new HttpEntity<>(body, h), Map.class);
+
+            logger.info("响应状态码: {}", resp.getStatusCode());
+            logger.info("响应体: {}", resp.getBody());
+
+            String result = parseOpenAIStyle(resp.getBody());
+            logger.info("解析结果: {}", result);
+
+            return result;
+        } catch (Exception e) {
+            logger.error("GLM API调用失败", e);
+            logger.error("错误详情: {}", e.getMessage());
+            return "GLM API调用失败: " + e.getMessage();
+        }
     }
 
     @SuppressWarnings("unchecked")

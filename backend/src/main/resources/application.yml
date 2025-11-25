@@ -16,7 +16,7 @@ ai:
     url-detect-file: http://127.0.0.1:8000/detect/file
     url-detect-url: http://127.0.0.1:8000/detect/url
   llm:
-    provider: kimi
+    provider: glm
     kimi:
       api-url: https://api.moonshot.cn/v1/chat/completions
       api-key: ${KIMI_API_KEY:change-me}
@@ -25,5 +25,9 @@ ai:
       api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
       api-key: ${QWEN_API_KEY:change-me}
       model: qwen-plus
+    glm:
+      api-url: https://open.bigmodel.cn/api/paas/v4/chat/completions
+      api-key: ${ZAI_API_KEY:${ANTHROPIC_AUTH_TOKEN:change-me}}
+      model: glm-4.5
 
 

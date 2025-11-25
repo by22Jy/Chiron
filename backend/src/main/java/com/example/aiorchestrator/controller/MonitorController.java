@@ -2,6 +2,8 @@ package com.example.aiorchestrator.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -11,9 +13,25 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
+// 用于接收手势控制状态更新的请求体
+class GestureControlRequest {
+    private boolean enabled;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+}
+
 @RestController
 @RequestMapping("/api/monitor")
 public class MonitorController {
+
+    // 手势控制状态存储（内存中，重启后会重置）
+    private static boolean gestureControlEnabled = true;
 
     @GetMapping("/status")
     public ResponseEntity<Map<String, String>> getSystemStatus() {
@@ -105,7 +123,36 @@ public class MonitorController {
         gestureStatus.put("confidence", 0.0);
         gestureStatus.put("last_update", System.currentTimeMillis());
         gestureStatus.put("is_detecting", false);
+        // 添加手势控制状态
+        gestureStatus.put("gesture_control_enabled", gestureControlEnabled);
+        gestureStatus.put("control_toggle_gesture", "victory");
 
         return ResponseEntity.ok(gestureStatus);
+    }
+
+    @PostMapping("/gesture/control")
+    public ResponseEntity<Map<String, Object>> toggleGestureControl() {
+        gestureControlEnabled = !gestureControlEnabled;
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("gesture_control_enabled", gestureControlEnabled);
+        response.put("message", gestureControlEnabled ? "手势控制已启用" : "手势控制已禁用");
+        response.put("timestamp", System.currentTimeMillis());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/gesture/control/set")
+    public ResponseEntity<Map<String, Object>> setGestureControl(@RequestBody GestureControlRequest request) {
+        gestureControlEnabled = request.isEnabled();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("gesture_control_enabled", gestureControlEnabled);
+        response.put("message", gestureControlEnabled ? "手势控制已启用" : "手势控制已禁用");
+        response.put("timestamp", System.currentTimeMillis());
+
+        return ResponseEntity.ok(response);
     }
 }

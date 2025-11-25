@@ -260,6 +260,54 @@
       </div>
     </div>
 
+    <!-- 手势控制状态面板 -->
+    <div class="gesture-control-section">
+      <h2 class="section-title animate-slide-in-left">
+        <span class="title-icon">🎛️</span>
+        手势控制
+      </h2>
+      <div class="gesture-control-card animate-slide-in-left" style="animation-delay: 0.1s">
+        <div class="gesture-control-header">
+          <div class="gesture-control-info">
+            <h3>控制状态</h3>
+            <p>使用 ✌️ VICTORY 手势切换控制状态</p>
+          </div>
+          <div class="gesture-control-status" :class="{ 'enabled': gestureStatus?.gesture_control_enabled, 'disabled': !gestureStatus?.gesture_control_enabled }">
+            <div class="status-indicator"></div>
+            <span class="status-text">{{ gestureStatus?.gesture_control_enabled ? '已启用' : '已禁用' }}</span>
+          </div>
+        </div>
+        <div class="gesture-control-actions">
+          <button
+            class="toggle-btn"
+            @click="toggleGestureControl"
+            :disabled="loading"
+            :class="{ 'enabled': gestureStatus?.gesture_control_enabled }"
+          >
+            <span class="btn-icon">{{ gestureStatus?.gesture_control_enabled ? '🛑' : '▶️' }}</span>
+            <span class="btn-text">{{ gestureStatus?.gesture_control_enabled ? '禁用控制' : '启用控制' }}</span>
+          </button>
+          <button
+            class="sync-btn"
+            @click="syncGestureStatus"
+            :disabled="loading"
+          >
+            <span class="btn-icon">🔄</span>
+            <span class="btn-text">同步状态</span>
+          </button>
+        </div>
+        <div class="gesture-control-footer">
+          <div class="control-tip">
+            <span class="tip-icon">💡</span>
+            <span class="tip-text">当前控制手势：{{ gestureStatus?.control_toggle_gesture?.toUpperCase() || 'VICTORY' }}</span>
+          </div>
+          <div class="last-sync">
+            上次同步：{{ formatTime(gestureStatus?.last_update) }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 系统状态面板 -->
     <div class="system-section">
       <div class="section-header">
@@ -469,6 +517,56 @@ const getStatusProgress = (status) => {
   return status === 'healthy' ? 100 : 30
 }
 
+// 手势控制方法
+const toggleGestureControl = async () => {
+  try {
+    loading.value = true
+    const response = await fetch('/api/monitor/gesture/control', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      ElMessage.success(data.message)
+      // 刷新状态
+      await monitorStore.fetchGestureStatus()
+    } else {
+      ElMessage.error('切换手势控制失败')
+    }
+  } catch (error) {
+    console.error('切换手势控制失败:', error)
+    ElMessage.error('切换手势控制失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const syncGestureStatus = async () => {
+  try {
+    loading.value = true
+    await monitorStore.fetchGestureStatus()
+    ElMessage.success('状态同步成功')
+  } catch (error) {
+    console.error('同步状态失败:', error)
+    ElMessage.error('同步状态失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const formatTime = (timestamp) => {
+  if (!timestamp) return '未知'
+  const date = new Date(timestamp)
+  return date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
 // 快捷操作方法
 const goToConfig = () => router.push('/config')
 const goToMonitor = () => router.push('/monitor')
@@ -478,6 +576,7 @@ const goToLogs = () => router.push('/logs')
 // 生命周期
 onMounted(async () => {
   await refreshSystemStatus()
+  await monitorStore.fetchGestureStatus()
 })
 </script>
 
@@ -1162,6 +1261,165 @@ onMounted(async () => {
 .progress-bar.error {
   background: var(--accent-red);
   width: 30%;
+}
+
+/* 手势控制状态 */
+.gesture-control-section {
+  padding: 60px 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.gesture-control-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-primary);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 8px 32px var(--shadow-light);
+  transition: all 0.3s ease;
+}
+
+.gesture-control-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px var(--shadow-medium);
+}
+
+.gesture-control-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.gesture-control-info h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.gesture-control-info p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.gesture-control-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.3s ease;
+}
+
+.gesture-control-status.enabled {
+  background: var(--accent-green-light);
+  color: var(--accent-green);
+}
+
+.gesture-control-status.disabled {
+  background: var(--accent-red-light);
+  color: var(--accent-red);
+}
+
+.gesture-control-status .status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s infinite;
+}
+
+.gesture-control-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.toggle-btn,
+.sync-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+}
+
+.toggle-btn:hover,
+.sync-btn:hover {
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.toggle-btn:disabled,
+.sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.toggle-btn.enabled {
+  background: var(--accent-red-light);
+  color: var(--accent-red);
+  border-color: var(--accent-red-light);
+}
+
+.toggle-btn.enabled:hover {
+  background: var(--accent-red);
+  color: white;
+}
+
+.sync-btn {
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+  border-color: var(--accent-blue-light);
+}
+
+.sync-btn:hover {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.btn-icon {
+  font-size: 1rem;
+}
+
+.gesture-control-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.control-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.813rem;
+}
+
+.tip-icon {
+  font-size: 1rem;
+}
+
+.last-sync {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
 }
 
 /* 快捷操作 */

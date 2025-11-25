@@ -49,10 +49,17 @@ class VideoProcessor:
         self.frame_count = 0
         self.gesture_count = 0
         self.last_detection_time = 0
-        
+
+        # Gesture Control State
+        self.gesture_control_enabled = True  # Default: enabled
+        self.control_toggle_gesture = "victory"  # VICTORY gesture toggles control
+        self.last_toggle_time = 0
+        self.toggle_cooldown = 2.0  # seconds between toggles to prevent rapid switching
+
         # Callbacks
         self.on_gesture_detected: Optional[Callable[[GestureResult], None]] = None
         self.on_action_executed: Optional[Callable[[str, bool, str], None]] = None
+        self.on_control_toggled: Optional[Callable[[bool], None]] = None
         
     def initialize(self) -> bool:
         try:
@@ -124,10 +131,46 @@ class VideoProcessor:
     def pause(self):
         self.paused = True
         logger.info('Video processor paused')
-    
+
     def resume(self):
         self.paused = False
         logger.info('Video processor resumed')
+
+    def toggle_gesture_control(self) -> bool:
+        """Toggle gesture control on/off and return new state"""
+        current_time = time.time()
+
+        # Check cooldown to prevent rapid toggling
+        if current_time - self.last_toggle_time < self.toggle_cooldown:
+            logger.debug('Toggle on cooldown, skipping')
+            return self.gesture_control_enabled
+
+        self.gesture_control_enabled = not self.gesture_control_enabled
+        self.last_toggle_time = current_time
+
+        status = "启用" if self.gesture_control_enabled else "禁用"
+        logger.info('🎛️ 手势控制已%s (VICTORY手势切换)', status)
+
+        # Trigger callback if set
+        if self.on_control_toggled:
+            self.on_control_toggled(self.gesture_control_enabled)
+
+        return self.gesture_control_enabled
+
+    def set_gesture_control_enabled(self, enabled: bool):
+        """Manually set gesture control state"""
+        if self.gesture_control_enabled != enabled:
+            self.gesture_control_enabled = enabled
+            status = "启用" if enabled else "禁用"
+            logger.info('🎛️ 手势控制已手动%s', status)
+
+            # Trigger callback if set
+            if self.on_control_toggled:
+                self.on_control_toggled(enabled)
+
+    def is_gesture_control_enabled(self) -> bool:
+        """Check if gesture control is currently enabled"""
+        return self.gesture_control_enabled
     
     def _capture_frames(self):
         while self.running:
@@ -219,6 +262,15 @@ class VideoProcessor:
                     # Draw statistics
                     stats_text = f'Frames: {self.frame_count} | Gestures: {self.gesture_count}'
                     cv2.putText(frame, stats_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+                    # Draw gesture control status
+                    status_color = (0, 255, 0) if self.gesture_control_enabled else (0, 0, 255)  # Green for enabled, Red for disabled
+                    status_text = f'Gesture Control: {"ON" if self.gesture_control_enabled else "OFF"}'
+                    cv2.putText(frame, status_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
+
+                    # Draw control hint
+                    hint_text = 'Make VICTORY sign (✌️) to toggle control'
+                    cv2.putText(frame, hint_text, (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
                     
                     # Show preview window
                     cv2.imshow('YOLO-LLM Agent - Gesture Detection', frame)
@@ -245,6 +297,26 @@ class VideoProcessor:
         # 详细日志记录
         logger.info('[DEBUG] Detected gesture: %s', gesture_result.gesture_code)
         logger.info('[DEBUG] Available mappings: %s', list(self.gesture_mapping.keys()))
+
+        # 检查是否为控制开关手势
+        gesture_code_lower = gesture_result.gesture_code.lower()
+        if gesture_code_lower == self.control_toggle_gesture:
+            new_state = self.toggle_gesture_control()
+            logger.info('[TOGGLE] Gesture control toggled to: %s', 'enabled' if new_state else 'disabled')
+
+            # 仍然通知检测到开关手势
+            if self.on_gesture_detected:
+                self.on_gesture_detected(gesture_result)
+            return
+
+        # 检查手势控制是否启用
+        if not self.gesture_control_enabled:
+            logger.info('[DISABLED] Gesture control is disabled, ignoring gesture: %s', gesture_result.gesture_code)
+
+            # 仍然通知检测到手势，但不执行动作
+            if self.on_gesture_detected:
+                self.on_gesture_detected(gesture_result)
+            return
 
         # 尝试匹配原始手势码和转换为小写的手势码
         gesture_code_original = gesture_result.gesture_code
@@ -319,6 +391,8 @@ class VideoProcessor:
             'gesture_count': self.gesture_count,
             'running': self.running,
             'paused': self.paused,
-            'mapping_count': len(self.gesture_mapping)
+            'mapping_count': len(self.gesture_mapping),
+            'gesture_control_enabled': self.gesture_control_enabled,
+            'control_toggle_gesture': self.control_toggle_gesture
         }
 

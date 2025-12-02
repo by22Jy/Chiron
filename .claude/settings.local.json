@@ -24,7 +24,15 @@
       "Bash(npm run dev:*)",
       "Bash(chmod:*)",
       "Bash(touch:*)",
-      "Bash(./start-voice-only.sh:*)"
+      "Bash(./start-voice-only.sh:*)",
+      "Bash(curl.exe -Uri \"http://localhost:8080/api/llm/chat\" -Method \"POST\" -ContentType \"application/json\" -Body '{\"\"message\"\":\"\"你好，请帮我打开记事本\"\",\"\"context\"\":\"\"测试\"\"}')",
+      "Bash(set PYTHONIOENCODING=utf-8:*)",
+      "Bash(echo:*)",
+      "Bash($env:ANTHROPIC_AUTH_TOKEN=\"31262c3e2e684437bce5b60bf7c2e87f.PlOR7zP3YqT3Y2Wh\")",
+      "Bash(ANTHROPIC_AUTH_TOKEN=31262c3e2e684437bce5b60bf7c2e87f.PlOR7zP3YqT3Y2Wh mvn:*)",
+      "Bash(.venvScriptspip.exe install:*)",
+      "Bash(.venv/Scripts/pip.exe:*)",
+      "Bash(.venv/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": []

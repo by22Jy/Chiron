@@ -16,7 +16,7 @@ ai:
     url-detect-file: http://127.0.0.1:8000/detect/file
     url-detect-url: http://127.0.0.1:8000/detect/url
   llm:
-    provider: glm
+    provider: deepseek
     kimi:
       api-url: https://api.moonshot.cn/v1/chat/completions
       api-key: ${KIMI_API_KEY:change-me}
@@ -29,5 +29,10 @@ ai:
       api-url: https://open.bigmodel.cn/api/paas/v4/chat/completions
       api-key: ${ZAI_API_KEY:${ANTHROPIC_AUTH_TOKEN:change-me}}
       model: glm-4.5
+    deepseek:
+      api-url: https://api.deepseek.com/chat/completions
+      api-key: ${DEEPSEEK_API_KEY:}
+      model: deepseek-chat
+    
 
 

@@ -1,6 +1,6 @@
 requests
 PyYAML
-pyautogui; sys_platform == "win32" or sys_platform == "darwin"
+pyautogui
 opencv-python
 mediapipe
 numpy
@@ -8,10 +8,6 @@ psutil>=5.9.0
 
 # AI and Speech Recognition
 SpeechRecognition>=3.10.0
-pyaudio>=0.2.11
-
-# Intelligent Control
-webbrowser
 
 # Mock Server (for testing)
 flask>=2.0.0

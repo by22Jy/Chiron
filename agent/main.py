@@ -21,7 +21,7 @@ try:
     from gesture_analyzer import GestureAnalyzer, GestureAnalysis
     AI_FEATURES_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f'AI features not available: {e}')
+    print(f'Warning: AI features not available: {e}')
     AI_FEATURES_AVAILABLE = False
 
 try:
@@ -65,6 +65,7 @@ class GestureAgent:
         self.should_stop = threading.Event()
 
         # AI Features
+        self.ai_features_available = AI_FEATURES_AVAILABLE
         self.voice_controller: Optional[VoiceController] = None
         self.gesture_analyzer: Optional[GestureAnalyzer] = None
 
@@ -82,7 +83,7 @@ class GestureAgent:
                 logger.info('🤖 AI features initialized successfully')
             except Exception as e:
                 logger.warning(f'Failed to initialize AI features: {e}')
-                AI_FEATURES_AVAILABLE = False
+                self.ai_features_available = False
     
     def _signal_handler(self, signum, frame):
         logger.info('Received signal %d, shutting down...', signum)

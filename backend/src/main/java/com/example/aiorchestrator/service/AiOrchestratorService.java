@@ -36,6 +36,10 @@ public class AiOrchestratorService {
     @Value("${ai.llm.glm.api-key}") private String glmKey;
     @Value("${ai.llm.glm.model}")  private String glmModel;
 
+    @Value("${ai.llm.deepseek.api-url}") private String deepseekUrl;
+    @Value("${ai.llm.deepseek.api-key}") private String deepseekKey;
+    @Value("${ai.llm.deepseek.model}")  private String deepseekModel;
+
     public String orchestrate(MultipartFile image, String question) {
         List<String> objects = callYoloWithFile(image);
         String prompt = buildPrompt(objects, question);
@@ -93,8 +97,10 @@ public class AiOrchestratorService {
             return callOpenAICompat(qwenUrl, qwenKey, qwenModel, prompt);
         } else if ("glm".equalsIgnoreCase(provider)) {
             return callGLM(glmUrl, glmKey, glmModel, prompt);
+        } else if ("deepseek".equalsIgnoreCase(provider)) {
+            return callOpenAICompat(deepseekUrl, deepseekKey, deepseekModel, prompt);
         } else {
-            return callOpenAICompat(qwenUrl, qwenKey, qwenModel, prompt);
+            return callOpenAICompat(deepseekUrl, deepseekKey, deepseekModel, prompt);
         }
     }
 

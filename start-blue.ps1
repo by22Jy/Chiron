@@ -184,9 +184,9 @@ function Start-Agent {
         Write-Host "Agent virtual environment ready" -ForegroundColor Green
     }
 
-    $command = "& '$venvPython' main.py --realtime"
+    $command = "& '$venvPython' main.py --realtime --voice"
     Start-BluePowerShellService "Agent Service" $agentDir $command "Normal"
-    Write-Host "✓ Agent Service: Gesture Detection (Normal Window)" -ForegroundColor White
+    Write-Host "✓ Agent Service: Gesture + Voice Control (Normal Window)" -ForegroundColor White
 }
 
 # 主要启动流程

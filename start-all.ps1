@@ -139,10 +139,10 @@ function Start-Agent {
         Write-Host 'Agent venv already exists, skipping requirements installation...' -ForegroundColor Green
     }
 
-    # 使用实时模式而不是watch模式，更适合演示
-    $cmd = "`"$venvPython`" main.py --realtime"
+    # 使用实时模式 + 语音控制，支持手势和语音同时工作
+    $cmd = "`"$venvPython`" main.py --realtime --voice"
     Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-ExecutionPolicy","Bypass","-Command","cd `"$agentDir`"; $cmd" -WindowStyle Normal | Out-Null
-    Write-Host '+ Agent real-time gesture detection started' -ForegroundColor Green
+    Write-Host '+ Agent real-time gesture + voice control started' -ForegroundColor Green
 }
 
 try {

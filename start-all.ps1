@@ -66,7 +66,7 @@ function Start-AIService {
     }
 
     $cmd = "`"$uvicornExe`" main:app --host 127.0.0.1 --port 8000 --reload"
-    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-Command","cd `"$aiDir`"; $cmd" -WindowStyle Minimized | Out-Null
+    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-ExecutionPolicy","Bypass","-Command","cd `"$aiDir`"; $cmd" -WindowStyle Minimized | Out-Null
     Write-Host '+ AI Service starting: http://127.0.0.1:8000' -ForegroundColor Green
     Start-Sleep -Seconds 5
 }
@@ -102,7 +102,7 @@ function Start-Backend {
     }
 
     $cmd = 'mvn spring-boot:run'
-    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-Command","cd `"$beDir`"; $cmd" -WindowStyle Minimized | Out-Null
+    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-ExecutionPolicy","Bypass","-Command","cd `"$beDir`"; $cmd" -WindowStyle Minimized | Out-Null
     Write-Host '+ Backend Service starting: http://127.0.0.1:8080' -ForegroundColor Green
     Start-Sleep -Seconds 10
 }
@@ -113,9 +113,9 @@ function Start-Frontend {
     if (-not (Test-Path $feDir)) { throw "Frontend directory not found: $feDir" }
     if (-not (Test-Path (Join-Path $feDir 'node_modules'))) {
         Write-Host 'Installing frontend dependencies...' -ForegroundColor Blue
-        Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-Command","cd `"$feDir`"; npm install; npm run dev" -WindowStyle Minimized | Out-Null
+        Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-ExecutionPolicy","Bypass","-Command","cd `"$feDir`"; npm install; npm run dev" -WindowStyle Minimized | Out-Null
     } else {
-        Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-Command","cd `"$feDir`"; npm run dev" -WindowStyle Minimized | Out-Null
+        Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-ExecutionPolicy","Bypass","-Command","cd `"$feDir`"; npm run dev" -WindowStyle Minimized | Out-Null
     }
     Write-Host '+ Frontend Service starting: http://127.0.0.1:5173' -ForegroundColor Green
     Start-Sleep -Seconds 5
@@ -141,7 +141,7 @@ function Start-Agent {
 
     # 使用实时模式而不是watch模式，更适合演示
     $cmd = "`"$venvPython`" main.py --realtime"
-    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-Command","cd `"$agentDir`"; $cmd" -WindowStyle Normal | Out-Null
+    Start-Process powershell -ArgumentList "-NoProfile","-NoExit","-ExecutionPolicy","Bypass","-Command","cd `"$agentDir`"; $cmd" -WindowStyle Normal | Out-Null
     Write-Host '+ Agent real-time gesture detection started' -ForegroundColor Green
 }
 

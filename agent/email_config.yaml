@@ -1,0 +1,60 @@
+# YOLO-LLM 邮件配置文件
+# 请根据您的邮箱服务商配置相应的信息
+
+# Gmail配置示例
+gmail:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  sender_email: "your_gmail@gmail.com"
+  sender_password: "your_app_password"  # 应用专用密码
+  use_tls: true
+
+# QQ邮箱配置示例
+qq:
+  smtp_server: "smtp.qq.com"
+  smtp_port: 587
+  sender_email: "your_qq@qq.com"
+  sender_password: "your_authorization_code"  # 授权码
+  use_tls: true
+
+# 163邮箱配置示例
+netease:
+  smtp_server: "smtp.163.com"
+  smtp_port: 465
+  sender_email: "your_163@163.com"
+  sender_password: "your_password"
+  use_tls: true
+
+# 默认使用的邮箱服务
+default_provider: "gmail"
+
+# 邮件发送设置
+email_settings:
+  send_interval: 5  # 发送间隔（秒）
+  retry_count: 3    # 重试次数
+  timeout: 30       # 超时时间（秒）
+
+# 目标邮箱配置
+target_emails:
+  primary: "1730495747@qq.com"
+  backup: "backup@example.com"  # 备用邮箱
+
+# 截图配置
+screenshot_settings:
+  save_dir: "./screenshots"
+  file_format: "png"
+  quality: 95
+  auto_cleanup: true  # 自动清理旧截图
+  cleanup_days: 7     # 保留天数
+
+# 新闻天气设置
+news_weather_settings:
+  news_count: 10      # 获取新闻数量
+  update_interval: 3600  # 更新间隔（秒）
+
+# 使用说明：
+# 1. 将上面的示例配置替换为您的真实信息
+# 2. 设置default_provider为您使用的邮箱服务
+# 3. 确保邮箱已开启SMTP服务
+# 4. 对于Gmail需要使用应用专用密码，不是登录密码
+# 5. 对于QQ邮箱需要使用授权码，不是QQ密码

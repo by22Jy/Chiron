@@ -1,0 +1,34 @@
+{
+  "test_time": 1765029130.8692834,
+  "total": 5,
+  "passed": 5,
+  "failed": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "name": "健康检查",
+      "success": true,
+      "details": "healthy"
+    },
+    {
+      "name": "获取工具列表",
+      "success": true,
+      "details": "找到6个工具"
+    },
+    {
+      "name": "天气工具",
+      "success": true,
+      "details": "调用成功"
+    },
+    {
+      "name": "新闻工具",
+      "success": true,
+      "details": "获取3条新闻"
+    },
+    {
+      "name": "文件系统工具",
+      "success": true,
+      "details": "写入成功"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "test_time": 1765029347.630648,
+  "total": 8,
+  "passed": 7,
+  "failed": 1,
+  "success_rate": 87.5,
+  "results": [
+    {
+      "name": "工具可用性",
+      "success": true,
+      "details": "所有6个工具可用"
+    },
+    {
+      "name": "新闻工具(直接)",
+      "success": true,
+      "details": "获取5条新闻"
+    },
+    {
+      "name": "天气工具(直接)",
+      "success": true,
+      "details": "上海 18°C"
+    },
+    {
+      "name": "邮件工具(直接)",
+      "success": true,
+      "details": "发送成功 msg_1765029337"
+    },
+    {
+      "name": "文件系统工具(读取)",
+      "success": false,
+      "details": "内容不匹配"
+    },
+    {
+      "name": "文件系统工具(写入)",
+      "success": true,
+      "details": "写入38字节"
+    },
+    {
+      "name": "截图工具",
+      "success": true,
+      "details": "截图成功 1024000 字节"
+    },
+    {
+      "name": "浏览器工具",
+      "success": true,
+      "details": "浏览器操作 open 执行成功"
+    }
+  ]
+}

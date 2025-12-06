@@ -1,0 +1,39 @@
+{
+  "test_time": 1765029291.0281942,
+  "total": 6,
+  "passed": 6,
+  "failed": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "name": "Java后端健康检查",
+      "success": true,
+      "details": "True"
+    },
+    {
+      "name": "增强对话",
+      "success": true,
+      "details": "成功获取响应"
+    },
+    {
+      "name": "天气工作流",
+      "success": true,
+      "details": "成功查询天气"
+    },
+    {
+      "name": "新闻邮件工作流",
+      "success": true,
+      "details": "成功执行"
+    },
+    {
+      "name": "发送邮件",
+      "success": true,
+      "details": "成功发送"
+    },
+    {
+      "name": "复杂工作流",
+      "success": true,
+      "details": "成功执行"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "session_id": "0977fc1b",
+  "test_time": 1765029441.8955703,
+  "total": 5,
+  "passed": 1,
+  "failed": 4,
+  "success_rate": 20.0,
+  "results": [
+    {
+      "name": "系统连通性",
+      "success": false,
+      "details": "'gbk' codec can't encode character '\\u2713' in position 4: illegal multibyte sequence"
+    },
+    {
+      "name": "完整工作流",
+      "success": false,
+      "details": "'gbk' codec can't encode character '\\u2713' in position 4: illegal multibyte sequence"
+    },
+    {
+      "name": "多工具协调",
+      "success": false,
+      "details": "'gbk' codec can't encode character '\\u2713' in position 4: illegal multibyte sequence"
+    },
+    {
+      "name": "错误处理",
+      "success": false,
+      "details": "0/3"
+    },
+    {
+      "name": "性能测试",
+      "success": true,
+      "details": "平均4744ms"
+    }
+  ]
+}

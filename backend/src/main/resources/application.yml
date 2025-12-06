@@ -33,6 +33,13 @@ ai:
       api-url: https://api.deepseek.com/chat/completions
       api-key: ${DEEPSEEK_API_KEY:}
       model: deepseek-chat
-    
+
+# MCP服务器配置
+mcp:
+  server:
+    url: ${MCP_SERVER_URL:http://localhost:8081}
+    timeout: 30000
+
+
 
 

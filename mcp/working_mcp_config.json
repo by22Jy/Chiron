@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "d:/yolo-llm"],
+      "description": "官方文件系统服务器 - 可验证存在",
+      "env": {}
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-memory"],
+      "description": "官方记忆服务器 - 可验证存在",
+      "env": {}
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["puppeteer-mcp-server"],
+      "description": "社区Puppeteer服务器 - 可验证存在",
+      "env": {}
+    }
+  }
+}

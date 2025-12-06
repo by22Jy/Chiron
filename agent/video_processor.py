@@ -1,7 +1,7 @@
 ﻿import cv2
 import threading
 import time
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 from queue import Queue, Empty
 import numpy as np
 from dataclasses import dataclass
@@ -9,6 +9,15 @@ from dataclasses import dataclass
 from gestures.mediapipe_detector import MediaPipeGestureDetector, GestureResult
 from actions.executor import execute_action
 from logger_config import setup_component_logger
+
+# Import AI service for YOLO detection
+try:
+    import requests
+    import base64
+    import json
+    YOLO_DETECTION_AVAILABLE = True
+except ImportError:
+    YOLO_DETECTION_AVAILABLE = False
 
 # 设置VideoProcessor的日志
 logger = setup_component_logger("video")
@@ -23,6 +32,8 @@ class VideoConfig:
     show_preview: bool = True
     flip_horizontal: bool = True
     detection_interval: float = 0.1  # seconds between gesture detections
+    yolo_detection_interval: float = 1.0  # seconds between YOLO detections
+    ai_service_url: str = "http://127.0.0.1:8000"  # AI service URL for YOLO detection
 
 
 class VideoProcessor:
@@ -49,6 +60,8 @@ class VideoProcessor:
         self.frame_count = 0
         self.gesture_count = 0
         self.last_detection_time = 0
+        self.yolo_detection_count = 0
+        self.last_yolo_detection_time = 0
 
         # Gesture Control State
         self.gesture_control_enabled = True  # Default: enabled
@@ -56,10 +69,15 @@ class VideoProcessor:
         self.last_toggle_time = 0
         self.toggle_cooldown = 2.0  # seconds between toggles to prevent rapid switching
 
+        # YOLO Detection
+        self.yolo_objects = []  # Current YOLO detected objects
+        self.yolo_detection_enabled = YOLO_DETECTION_AVAILABLE
+
         # Callbacks
         self.on_gesture_detected: Optional[Callable[[GestureResult], None]] = None
         self.on_action_executed: Optional[Callable[[str, bool, str], None]] = None
         self.on_control_toggled: Optional[Callable[[bool], None]] = None
+        self.on_yolo_objects_detected: Optional[Callable[[List[Dict]], None]] = None
         
     def initialize(self) -> bool:
         try:
@@ -171,7 +189,54 @@ class VideoProcessor:
     def is_gesture_control_enabled(self) -> bool:
         """Check if gesture control is currently enabled"""
         return self.gesture_control_enabled
-    
+
+    def detect_yolo_objects(self, frame: np.ndarray) -> List[Dict]:
+        """使用AI服务进行YOLO物体检测"""
+        if not self.yolo_detection_enabled:
+            return []
+
+        try:
+            # 编码图片为base64
+            _, buffer = cv2.imencode('.jpg', frame)
+            img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+            # 发送到AI服务进行检测
+            response = requests.post(
+                f"{self.config.ai_service_url}/detect/file",
+                json={"image": img_base64},
+                timeout=3.0
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                objects = result.get('objects', [])
+
+                # 转换为标准格式
+                detected_objects = []
+                for obj in objects:
+                    detected_objects.append({
+                        "name": obj.get("name", "unknown"),
+                        "confidence": obj.get("confidence", 0.0),
+                        "bbox": obj.get("bbox", []),
+                        "frame_id": self.frame_count
+                    })
+
+                logger.debug(f"YOLO检测到 {len(detected_objects)} 个物体")
+                return detected_objects
+            else:
+                logger.warning(f"YOLO检测失败: HTTP {response.status_code}")
+                return []
+
+        except Exception as e:
+            logger.error(f"YOLO检测错误: {e}")
+            return []
+
+    def set_yolo_detection_enabled(self, enabled: bool):
+        """启用或禁用YOLO检测"""
+        self.yolo_detection_enabled = enabled and YOLO_DETECTION_AVAILABLE
+        status = "启用" if self.yolo_detection_enabled else "禁用"
+        logger.info(f'🔍 YOLO检测已{status}')
+
     def _capture_frames(self):
         while self.running:
             if not self.paused:
@@ -203,19 +268,32 @@ class VideoProcessor:
                     if current_time - self.last_detection_time >= self.config.detection_interval:
                         gesture_results = self.detector.detect_hands(frame)
                         self.last_detection_time = current_time
-                        
+
+                        # Perform YOLO detection at specified intervals
+                        yolo_objects = []
+                        if current_time - self.last_yolo_detection_time >= self.config.yolo_detection_interval:
+                            yolo_objects = self.detect_yolo_objects(frame)
+                            self.last_yolo_detection_time = current_time
+                            self.yolo_objects = yolo_objects
+                            self.yolo_detection_count += 1
+
+                            # Trigger YOLO detection callback
+                            if self.on_yolo_objects_detected and yolo_objects:
+                                self.on_yolo_objects_detected(yolo_objects)
+
                         if gesture_results:
                             for gesture_result in gesture_results:
                                 self._handle_gesture(gesture_result)
                                 self.gesture_count += 1
-                                
+
                                 if self.on_gesture_detected:
                                     self.on_gesture_detected(gesture_result)
-                        
+
                         # Put frame with results for display
                         display_data = {
                             'frame': frame,
-                            'gestures': gesture_results or []
+                            'gestures': gesture_results or [],
+                            'yolo_objects': yolo_objects
                         }
                         
                         try:
@@ -227,7 +305,8 @@ class VideoProcessor:
                         # Still put frame for display without detection
                         display_data = {
                             'frame': frame,
-                            'gestures': []
+                            'gestures': [],
+                            'yolo_objects': self.yolo_objects  # Use current YOLO objects
                         }
                         try:
                             self.result_queue.put(display_data, timeout=0.1)
@@ -248,19 +327,32 @@ class VideoProcessor:
                     display_data = self.result_queue.get(timeout=0.1)
                     frame = display_data['frame']
                     gestures = display_data['gestures']
-                    
+                    yolo_objects = display_data.get('yolo_objects', [])
+
+                    # Draw YOLO object information
+                    for obj in yolo_objects:
+                        if obj.get('bbox'):
+                            x, y, x2, y2 = obj['bbox']  # YOLO format: [x1, y1, x2, y2]
+                            cv2.rectangle(frame, (x, y), (x2, y2), (255, 0, 255), 2)  # Purple color for YOLO objects
+
+                            # Draw object label
+                            name = obj.get('name', 'unknown')
+                            confidence = obj.get('confidence', 0.0)
+                            label = f'{name}: {confidence:.2f}'
+                            cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
+
                     # Draw gesture information
                     for i, gesture in enumerate(gestures):
                         if gesture.bbox:
                             x, y, w, h = gesture.bbox
                             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                            
+
                             # Draw gesture label
                             label = f'{gesture.gesture_code}: {gesture.confidence:.2f}'
                             cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                     
                     # Draw statistics
-                    stats_text = f'Frames: {self.frame_count} | Gestures: {self.gesture_count}'
+                    stats_text = f'Frames: {self.frame_count} | Gestures: {self.gesture_count} | Objects: {len(yolo_objects)}'
                     cv2.putText(frame, stats_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
                     # Draw gesture control status
@@ -389,10 +481,13 @@ class VideoProcessor:
         return {
             'frame_count': self.frame_count,
             'gesture_count': self.gesture_count,
+            'yolo_detection_count': self.yolo_detection_count,
             'running': self.running,
             'paused': self.paused,
             'mapping_count': len(self.gesture_mapping),
             'gesture_control_enabled': self.gesture_control_enabled,
-            'control_toggle_gesture': self.control_toggle_gesture
+            'control_toggle_gesture': self.control_toggle_gesture,
+            'yolo_detection_enabled': self.yolo_detection_enabled,
+            'current_yolo_objects': len(self.yolo_objects)
         }
 

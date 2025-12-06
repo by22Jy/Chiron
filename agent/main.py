@@ -5,20 +5,23 @@ import signal
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 
 import requests
 import yaml
 
 from video_processor import VideoProcessor, VideoConfig
 from gestures.mediapipe_detector import GestureResult
-from actions.executor import get_supported_actions
+from actions.executor import get_supported_actions, execute_action
 from logger_config import setup_component_logger
 
 # Import new AI features
 try:
     from speech_controller import VoiceController, VoiceCommand
     from gesture_analyzer import GestureAnalyzer, GestureAnalysis
+    from context_manager import ContextManager
+    from visual_status_reporter import VisualStatusReporter
+    from gesture_router import GestureRouter, RouteType
     AI_FEATURES_AVAILABLE = True
 except ImportError as e:
     print(f'Warning: AI features not available: {e}')
@@ -68,6 +71,9 @@ class GestureAgent:
         self.ai_features_available = AI_FEATURES_AVAILABLE
         self.voice_controller: Optional[VoiceController] = None
         self.gesture_analyzer: Optional[GestureAnalyzer] = None
+        self.context_manager: Optional[ContextManager] = None
+        self.visual_status_reporter: Optional[VisualStatusReporter] = None
+        self.gesture_router: Optional[GestureRouter] = None
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -80,7 +86,33 @@ class GestureAgent:
             try:
                 self.voice_controller = VoiceController(config.base_url)
                 self.gesture_analyzer = GestureAnalyzer(config.base_url)
+
+                # Initialize ContextManager with visual context configuration
+                context_config = {
+                    "max_history_size": 50,
+                    "object_timeout": 5.0
+                }
+                self.context_manager = ContextManager(context_config)
+
+                # Initialize GestureRouter with context manager
+                self.gesture_router = GestureRouter(self.context_manager)
+
+                # Initialize VisualStatusReporter
+                reporter_config = {
+                    "report_interval": 30.0,  # 30秒上报一次
+                    "api_timeout": 10.0,
+                    "enable_change_detection": True
+                }
+                self.visual_status_reporter = VisualStatusReporter(
+                    base_url=config.base_url,
+                    context_manager=self.context_manager,
+                    config=reporter_config
+                )
+
                 logger.info('🤖 AI features initialized successfully')
+                logger.info('🎯 ContextManager initialized for visual context')
+                logger.info('🔀 GestureRouter initialized for fast/slow path routing')
+                logger.info('📊 VisualStatusReporter initialized for status reporting')
             except Exception as e:
                 logger.warning(f'Failed to initialize AI features: {e}')
                 self.ai_features_available = False
@@ -212,9 +244,19 @@ class GestureAgent:
             self.video_processor.on_gesture_detected = self._on_gesture_detected
             self.video_processor.on_action_executed = self._on_action_executed
 
+            # Set YOLO detection callback if ContextManager is available
+            if self.context_manager:
+                self.video_processor.on_yolo_objects_detected = self._on_yolo_objects_detected
+                logger.info('[AGENT] YOLO detection callback connected to ContextManager')
+
             # Start video processing
             logger.info('[AGENT] Starting video processor...')
             self.video_processor.start()
+
+            # Start visual status reporter if available
+            if self.visual_status_reporter:
+                self.visual_status_reporter.start()
+                logger.info('[AGENT] Visual status reporter started')
 
             logger.info('[AGENT] Real-time gesture detection started successfully')
             logger.info('[AGENT] Press Ctrl+C to stop, or press Space in preview window to pause/resume')
@@ -242,8 +284,19 @@ class GestureAgent:
                 self.video_processor = VideoProcessor(self.config.video_config, self.mapping)
                 self.video_processor.on_gesture_detected = self._on_gesture_detected
                 self.video_processor.on_action_executed = self._on_action_executed
+
+                # Set YOLO detection callback if ContextManager is available
+                if self.context_manager:
+                    self.video_processor.on_yolo_objects_detected = self._on_yolo_objects_detected
+                    logger.info('[AGENT] YOLO detection callback connected to ContextManager')
+
                 self.video_processor.start()
-            
+
+                # Start visual status reporter if available
+                if self.visual_status_reporter:
+                    self.visual_status_reporter.start()
+                    logger.info('[AGENT] Visual status reporter started (daemon mode)')
+
             # Config polling loop
             while self.running and not self.should_stop.is_set():
                 try:
@@ -259,28 +312,124 @@ class GestureAgent:
             self.stop()
     
     def _on_gesture_detected(self, gesture_result: GestureResult):
-        logger.info('[AGENT] Gesture detected: %s (confidence: %.2f)', gesture_result.gesture_code, gesture_result.confidence)
-        logger.info('[AGENT] Available mappings in agent: %s', list(self.mapping.keys()))
+        """处理检测到的手势，使用快慢通道路由策略"""
+        try:
+            gesture_code = gesture_result.gesture_code
+            logger.info(f'[GESTURE] Detected: {gesture_code} (confidence: {gesture_result.confidence:.2f})')
 
-        # Check if we have a mapping for this gesture
-        gesture_code_original = gesture_result.gesture_code
-        gesture_code_lower = gesture_code_original.lower()
+            # 使用手势路由器进行路由决策
+            if self.gesture_router:
+                visual_context = self.context_manager.get_current_context() if self.context_manager else None
+                route_decision = self.gesture_router.route_gesture(gesture_result, visual_context)
 
-        has_mapping_original = gesture_code_original in self.mapping
-        has_mapping_lower = gesture_code_lower in self.mapping
+                logger.info(f'[ROUTING] {gesture_code} -> {route_decision.route_type.value} ({route_decision.reasoning})')
 
-        logger.info('[AGENT] Mapping check: %s -> %s, %s -> %s',
-                    gesture_code_original, has_mapping_original,
-                    gesture_code_lower, has_mapping_lower)
+                # 根据路由决策处理手势
+                if route_decision.route_type == RouteType.IGNORE:
+                    logger.debug(f'[ROUTING] Ignoring gesture: {gesture_code}')
+                    return
 
-        if has_mapping_original:
-            action = self.mapping[gesture_code_original]
-            logger.info('[AGENT] Found action mapping: %s', action)
-        elif has_mapping_lower:
-            action = self.mapping[gesture_code_lower]
-            logger.info('[AGENT] Found action mapping (lowercase): %s', action)
+                elif route_decision.route_type == RouteType.FAST_PATH:
+                    # 快通道：直接执行预定义动作
+                    if route_decision.expected_action:
+                        action_type = route_decision.expected_action.get('type')
+                        action_value = route_decision.expected_action.get('value')
+                        action_payload = route_decision.expected_action.get('payload')
+
+                        logger.info(f'[FAST_PATH] Executing: {action_type} - {action_value}')
+                        success, message = execute_action(action_type, action_value, action_payload)
+
+                        if self.on_action_executed:
+                            self.on_action_executed(gesture_code, success, message)
+
+                        self.post_log(
+                            gesture_code=gesture_code,
+                            action_type=action_type,
+                            action_value=action_value,
+                            status='success' if success else 'failure',
+                            message=message
+                        )
+                        return
+
+                elif route_decision.route_type == RouteType.SLOW_PATH:
+                    # 慢通道：发送到后端进行LLM意图分析
+                    self._send_slow_path_gesture(gesture_result, route_decision)
+                    return
+
+            # 回退到传统的映射处理（如果没有路由器或路由失败）
+            gesture_code_original = gesture_result.gesture_code
+            gesture_code_lower = gesture_code_original.lower()
+
+            has_mapping_original = gesture_code_original in self.mapping
+            has_mapping_lower = gesture_code_lower in self.mapping
+
+            if has_mapping_original:
+                action = self.mapping[gesture_code_original]
+                self._execute_gesture_action(gesture_code_original, action)
+            elif has_mapping_lower:
+                action = self.mapping[gesture_code_lower]
+                self._execute_gesture_action(gesture_code_lower, action)
+            else:
+                logger.warning(f'[FALLBACK] No action mapping found for gesture: {gesture_code_original}')
+
+        except Exception as exc:
+            logger.exception(f'[GESTURE] Error processing gesture: {exc}')
+            self.post_log(
+                gesture_code=gesture_result.gesture_code,
+                action_type='error',
+                action_value='',
+                status='failure',
+                message=str(exc)
+            )
+
+    def _execute_gesture_action(self, gesture_code: str, action: Dict[str, Any]):
+        """执行手势动作"""
+        action_type = action.get('type')
+        action_value = action.get('value')
+        action_payload = action.get('payload')
+
+        if action_type:
+            logger.info(f'[FALLBACK] Executing: {action_type} - {action_value}')
+            success, message = execute_action(action_type, action_value, action_payload)
+
+            if self.on_action_executed:
+                self.on_action_executed(gesture_code, success, message)
+
+            self.post_log(
+                gesture_code=gesture_code,
+                action_type=action_type,
+                action_value=action_value,
+                status='success' if success else 'failure',
+                message=message
+            )
         else:
-            logger.warning('[AGENT] No action mapping found for gesture: %s', gesture_code_original)
+            logger.warning(f'[FALLBACK] No action type for: {gesture_code}')
+
+    def _send_slow_path_gesture(self, gesture_result: GestureResult, route_decision):
+        """发送慢通道手势到后端进行LLM意图分析"""
+        try:
+            # 获取视觉上下文
+            visual_context = self.get_visual_context_for_llm()
+
+            # 构建慢通道手势事件
+            event_data = {
+                'gesture_code': gesture_result.gesture_code,
+                'gesture_confidence': gesture_result.confidence,
+                'gesture_bbox': gesture_result.bbox,
+                'handedness': getattr(gesture_result, 'handedness', 'unknown'),
+                'route_reasoning': route_decision.reasoning,
+                'visual_context': visual_context,
+                'available_objects': visual_context.get('available_objects', []),
+                'scene_description': visual_context.get('visual_context', {}).get('scene_description', ''),
+                'intent_analysis_required': True
+            }
+
+            # 发送到后端进行LLM分析
+            self.send_event('slow_path_gesture', event_data)
+            logger.info(f'[SLOW_PATH] Sent gesture for LLM analysis: {gesture_result.gesture_code}')
+
+        except Exception as e:
+            logger.error(f'[SLOW_PATH] Failed to send gesture for analysis: {e}')
     
     def _on_action_executed(self, gesture_code: str, success: bool, message: str):
         logger.info('[AGENT] Action executed: gesture=%s, success=%s, message=%s',
@@ -300,6 +449,33 @@ class GestureAgent:
             status='success' if success else 'failure',
             message=message
         )
+
+    def _on_yolo_objects_detected(self, detected_objects: List[Dict]):
+        """处理YOLO物体检测结果"""
+        if not self.context_manager:
+            return
+
+        try:
+            # 更新ContextManager中的视觉上下文
+            self.context_manager.update_context(
+                detected_objects=detected_objects,
+                frame_id=0  # Will be updated by video processor
+            )
+
+            # 记录检测到的物体
+            object_names = [obj['name'] for obj in detected_objects if obj.get('confidence', 0) > 0.5]
+            if object_names:
+                logger.debug(f'[CONTEXT] YOLO检测到物体: {", ".join(object_names)}')
+
+        except Exception as e:
+            logger.error(f'[CONTEXT] 更新视觉上下文失败: {e}')
+
+    def get_visual_context_for_llm(self) -> Dict[str, Any]:
+        """获取用于LLM的视觉上下文"""
+        if not self.context_manager:
+            return {"visual_context": None, "available_objects": []}
+
+        return self.context_manager.get_context_for_llm()
     
     def start_voice_control(self):
         """启动语音控制"""
@@ -354,7 +530,17 @@ class GestureAgent:
     def _on_speech_text(self, text: str):
         """处理识别到的语音文本"""
         logger.info(f'🎤 Speech recognized: {text}')
-        self.send_event('speech_recognized', {'text': text})
+
+        # 获取视觉上下文并发送给后端
+        visual_context = self.get_visual_context_for_llm()
+
+        # 发送包含视觉上下文的语音识别事件
+        self.send_event('speech_recognized', {
+            'text': text,
+            'visual_context': visual_context,
+            'available_objects': visual_context.get('available_objects', []),
+            'scene_description': visual_context.get('visual_context', {}).get('scene_description', '')
+        })
 
     def stop(self):
         if not self.running:
@@ -371,6 +557,11 @@ class GestureAgent:
 
         # Stop voice control
         self.stop_voice_control()
+
+        # Stop visual status reporter
+        if self.visual_status_reporter:
+            self.visual_status_reporter.stop()
+            logger.info('Visual status reporter stopped')
 
         logger.info('Gesture agent stopped')
     

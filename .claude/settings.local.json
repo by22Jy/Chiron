@@ -32,7 +32,9 @@
       "Bash(ANTHROPIC_AUTH_TOKEN=31262c3e2e684437bce5b60bf7c2e87f.PlOR7zP3YqT3Y2Wh mvn:*)",
       "Bash(.venvScriptspip.exe install:*)",
       "Bash(.venv/Scripts/pip.exe:*)",
-      "Bash(.venv/Scripts/python.exe:*)"
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(git push:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

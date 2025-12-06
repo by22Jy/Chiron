@@ -1,0 +1,25 @@
+{
+  "templates": {
+    "default": {
+      "subject": "来自YOLO-LLM Agent的消息",
+      "greeting": "您好，",
+      "signature": "\n\n此消息由YOLO-LLM智能助手发送"
+    },
+    "test_template": {
+      "subject_prefix": "",
+      "greeting": "",
+      "signature": "",
+      "description": "Phase 2测试用模板",
+      "subject_template": "测试模板",
+      "content_template": "这是一个测试邮件模板"
+    },
+    "phase2_test": {
+      "subject_prefix": "",
+      "greeting": "",
+      "signature": "",
+      "description": "",
+      "subject_template": "Phase 2测试模板",
+      "content_template": "这是Phase 2的测试模板内容"
+    }
+  }
+}

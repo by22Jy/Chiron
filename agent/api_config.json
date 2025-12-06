@@ -1,0 +1,56 @@
+{
+  "news_api_key": "",
+  "weather_api_key": "",
+  "default_city": "Beijing",
+
+  "news_api_info": {
+    "provider": "NewsAPI.org",
+    "url": "https://newsapi.org/v2",
+    "description": "需要注册 NewsAPI.org 获取免费的API密钥",
+    "free_tier": "每月1000次请求",
+    "registration_url": "https://newsapi.org/register"
+  },
+
+  "weather_api_info": {
+    "provider": "OpenWeatherMap",
+    "url": "https://openweathermap.org/api",
+    "description": "需要注册 OpenWeatherMap 获取免费的API密钥",
+    "free_tier": "每月1000000次调用",
+    "registration_url": "https://home.openweathermap.org/users/sign_up"
+  },
+
+  "usage_instructions": {
+    "step1": "注册 NewsAPI.org 账户并获取API密钥",
+    "step2": "注册 OpenWeatherMap 账户并获取API密钥",
+    "step3": "将API密钥填入 news_api_key 和 weather_api_key 字段",
+    "step4": "配置 default_city 为您的城市",
+    "step5": "保存配置文件并重新运行程序"
+  },
+
+  "alternative_apis": {
+    "news": [
+      {
+        "name": "Bing News Search",
+        "url": "https://azure.microsoft.com/en-us/services/cognitive-services/bing-news-search-api/",
+        "description": "微软Bing新闻搜索API"
+      },
+      {
+        "name": "GNews",
+        "url": "https://gnews.io/",
+        "description": "免费新闻API服务"
+      }
+    ],
+    "weather": [
+      {
+        "name": "WeatherAPI",
+        "url": "https://www.weatherapi.com/",
+        "description": "免费天气API服务"
+      },
+      {
+        "name": "AccuWeather",
+        "url": "https://developer.accuweather.com/",
+        "description": "专业天气API服务"
+      }
+    ]
+  }
+}

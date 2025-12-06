@@ -78,6 +78,7 @@ class VideoProcessor:
         self.on_action_executed: Optional[Callable[[str, bool, str], None]] = None
         self.on_control_toggled: Optional[Callable[[bool], None]] = None
         self.on_yolo_objects_detected: Optional[Callable[[List[Dict]], None]] = None
+        self.on_frame_display: Optional[Callable[[np.ndarray], np.ndarray]] = None
         
     def initialize(self) -> bool:
         try:
@@ -363,7 +364,14 @@ class VideoProcessor:
                     # Draw control hint
                     hint_text = 'Make VICTORY sign (✌️) to toggle control'
                     cv2.putText(frame, hint_text, (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-                    
+
+                    # Phase 4: Apply visual feedback overlay
+                    if self.on_frame_display:
+                        try:
+                            frame = self.on_frame_display(frame, gestures)
+                        except Exception as e:
+                            logger.error(f"Visual feedback error: {e}")
+
                     # Show preview window
                     cv2.imshow('YOLO-LLM Agent - Gesture Detection', frame)
                     

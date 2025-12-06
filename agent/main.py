@@ -22,6 +22,8 @@ try:
     from context_manager import ContextManager
     from visual_status_reporter import VisualStatusReporter
     from gesture_router import GestureRouter, RouteType
+    from tts_engine import TTSEngine, TTSConfig, VoiceFeedback
+    from visual_feedback import VisualFeedback, VisualFeedbackConfig, AgentState, FeedbackLevel
     AI_FEATURES_AVAILABLE = True
 except ImportError as e:
     print(f'Warning: AI features not available: {e}')
@@ -75,6 +77,10 @@ class GestureAgent:
         self.visual_status_reporter: Optional[VisualStatusReporter] = None
         self.gesture_router: Optional[GestureRouter] = None
 
+        # Phase 4 Features: TTS and Visual Feedback
+        self.tts_engine: Optional[TTSEngine] = None
+        self.visual_feedback: Optional[VisualFeedback] = None
+
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -109,10 +115,31 @@ class GestureAgent:
                     config=reporter_config
                 )
 
+                # Initialize TTS Engine
+                tts_config = TTSConfig(
+                    enabled=True,
+                    engine_type="offline",  # 默认使用离线模式
+                    voice="zh-CN-XiaoxiaoNeural",
+                    rate=200,
+                    volume=0.8
+                )
+                self.tts_engine = TTSEngine(tts_config)
+
+                # Initialize Visual Feedback
+                visual_config = VisualFeedbackConfig(
+                    enable_status_display=True,
+                    enable_message_overlay=True,
+                    enable_progress_bar=True,
+                    enable_gesture_indicators=True
+                )
+                self.visual_feedback = VisualFeedback(visual_config)
+
                 logger.info('🤖 AI features initialized successfully')
                 logger.info('🎯 ContextManager initialized for visual context')
                 logger.info('🔀 GestureRouter initialized for fast/slow path routing')
                 logger.info('📊 VisualStatusReporter initialized for status reporting')
+                logger.info('🔊 TTS Engine initialized for voice feedback')
+                logger.info('👁️ Visual Feedback initialized for UI feedback')
             except Exception as e:
                 logger.warning(f'Failed to initialize AI features: {e}')
                 self.ai_features_available = False
@@ -249,6 +276,11 @@ class GestureAgent:
                 self.video_processor.on_yolo_objects_detected = self._on_yolo_objects_detected
                 logger.info('[AGENT] YOLO detection callback connected to ContextManager')
 
+            # Phase 4: 设置视觉反馈回调
+            if self.visual_feedback:
+                self.video_processor.on_frame_display = self._on_frame_display
+                logger.info('[AGENT] Visual feedback callback connected')
+
             # Start video processing
             logger.info('[AGENT] Starting video processor...')
             self.video_processor.start()
@@ -290,6 +322,11 @@ class GestureAgent:
                     self.video_processor.on_yolo_objects_detected = self._on_yolo_objects_detected
                     logger.info('[AGENT] YOLO detection callback connected to ContextManager')
 
+                # Phase 4: 设置视觉反馈回调
+                if self.visual_feedback:
+                    self.video_processor.on_frame_display = self._on_frame_display
+                    logger.info('[AGENT] Visual feedback callback connected')
+
                 self.video_processor.start()
 
                 # Start visual status reporter if available
@@ -315,7 +352,17 @@ class GestureAgent:
         """处理检测到的手势，使用快慢通道路由策略"""
         try:
             gesture_code = gesture_result.gesture_code
-            logger.info(f'[GESTURE] Detected: {gesture_code} (confidence: {gesture_result.confidence:.2f})')
+            confidence = gesture_result.confidence
+            logger.info(f'[GESTURE] Detected: {gesture_code} (confidence: {confidence:.2f})')
+
+            # Phase 4: 提供视觉和语音反馈
+            if self.visual_feedback:
+                self.visual_feedback.add_message(
+                    f"检测到手势: {gesture_code}",
+                    FeedbackLevel.INFO,
+                    duration=2.0
+                )
+                self.visual_feedback.set_state(AgentState.PROCESSING)
 
             # 使用手势路由器进行路由决策
             if self.gesture_router:
@@ -337,7 +384,32 @@ class GestureAgent:
                         action_payload = route_decision.expected_action.get('payload')
 
                         logger.info(f'[FAST_PATH] Executing: {action_type} - {action_value}')
+
+                        # Phase 4: 执行前反馈
+                        if self.visual_feedback:
+                            self.visual_feedback.set_state(AgentState.EXECUTING, f"执行{action_type}")
+                            self.visual_feedback.set_progress(0.5, "执行动作")
+
+                        if self.tts_engine:
+                            self.tts_engine.speak_async("正在执行操作")
+
                         success, message = execute_action(action_type, action_value, action_payload)
+
+                        # Phase 4: 执行后反馈
+                        if self.visual_feedback:
+                            if success:
+                                self.visual_feedback.set_state(AgentState.SUCCESS, "操作完成")
+                                self.visual_feedback.add_message("执行成功", FeedbackLevel.SUCCESS)
+                            else:
+                                self.visual_feedback.set_state(AgentState.ERROR, "操作失败")
+                                self.visual_feedback.add_message(f"执行失败: {message}", FeedbackLevel.ERROR)
+                            self.visual_feedback.set_progress(1.0)
+
+                        if self.tts_engine:
+                            if success:
+                                VoiceFeedback.speak_feedback(VoiceFeedback.SUCCESS)
+                            else:
+                                VoiceFeedback.speak_feedback(VoiceFeedback.FAILED)
 
                         if self.on_action_executed:
                             self.on_action_executed(gesture_code, success, message)
@@ -353,6 +425,14 @@ class GestureAgent:
 
                 elif route_decision.route_type == RouteType.SLOW_PATH:
                     # 慢通道：发送到后端进行LLM意图分析
+                    # Phase 4: 思考状态反馈
+                    if self.visual_feedback:
+                        self.visual_feedback.set_state(AgentState.THINKING, "分析意图中...")
+                        self.visual_feedback.set_progress(0.3, "LLM分析")
+
+                    if self.tts_engine:
+                        self.tts_engine.speak_async("正在分析指令意图")
+
                     self._send_slow_path_gesture(gesture_result, route_decision)
                     return
 
@@ -542,6 +622,15 @@ class GestureAgent:
             'scene_description': visual_context.get('visual_context', {}).get('scene_description', '')
         })
 
+    def _on_frame_display(self, frame, gestures=None):
+        """视觉反馈回调：在帧上绘制Agent状态和反馈"""
+        if self.visual_feedback:
+            try:
+                return self.visual_feedback.draw_feedback(frame, gestures)
+            except Exception as e:
+                logger.error(f"Visual feedback error: {e}")
+        return frame
+
     def stop(self):
         if not self.running:
             return
@@ -562,6 +651,15 @@ class GestureAgent:
         if self.visual_status_reporter:
             self.visual_status_reporter.stop()
             logger.info('Visual status reporter stopped')
+
+        # Phase 4: 清理TTS和视觉反馈
+        if self.tts_engine:
+            self.tts_engine.cleanup()
+            logger.info('TTS engine cleaned up')
+
+        if self.visual_feedback:
+            self.visual_feedback.reset()
+            logger.info('Visual feedback reset')
 
         logger.info('Gesture agent stopped')
     

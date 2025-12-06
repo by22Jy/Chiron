@@ -10,6 +10,8 @@ from .tool_registry import ToolRegistry
 from .system_tool import SystemTool
 from .file_tool import FileTool
 from .input_tool import InputTool
+from .messaging_tool import MessagingTool
+from .web_tool import WebTool
 
 __all__ = [
     'BaseTool',
@@ -17,7 +19,9 @@ __all__ = [
     'ToolRegistry',
     'SystemTool',
     'FileTool',
-    'InputTool'
+    'InputTool',
+    'MessagingTool',
+    'WebTool'
 ]
 
 # 注册所有核心工具
@@ -33,5 +37,11 @@ def register_core_tools():
 
     # 注册输入工具
     registry.register_tool(InputTool())
+
+    # 注册通信工具
+    registry.register_tool(MessagingTool())
+
+    # 注册网络工具
+    registry.register_tool(WebTool())
 
     return registry

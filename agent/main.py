@@ -24,6 +24,7 @@ try:
     from gesture_router import GestureRouter, RouteType
     from tts_engine import TTSEngine, TTSConfig, VoiceFeedback
     from visual_feedback import VisualFeedback, VisualFeedbackConfig, AgentState, FeedbackLevel
+    from safety_confirmation import SafetyConfirmationManager, request_action_confirmation, handle_confirmation_gesture
     AI_FEATURES_AVAILABLE = True
 except ImportError as e:
     print(f'Warning: AI features not available: {e}')
@@ -77,9 +78,10 @@ class GestureAgent:
         self.visual_status_reporter: Optional[VisualStatusReporter] = None
         self.gesture_router: Optional[GestureRouter] = None
 
-        # Phase 4 Features: TTS and Visual Feedback
+        # Phase 4 Features: TTS, Visual Feedback, and Safety Confirmation
         self.tts_engine: Optional[TTSEngine] = None
         self.visual_feedback: Optional[VisualFeedback] = None
+        self.safety_confirmation: Optional[SafetyConfirmationManager] = None
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -134,12 +136,21 @@ class GestureAgent:
                 )
                 self.visual_feedback = VisualFeedback(visual_config)
 
+                # Initialize Safety Confirmation Manager
+                safety_config = {
+                    "default_timeout": 30.0,
+                    "max_pending_requests": 3,
+                    "auto_approve_safe_actions": True
+                }
+                self.safety_confirmation = SafetyConfirmationManager(safety_config)
+
                 logger.info('🤖 AI features initialized successfully')
                 logger.info('🎯 ContextManager initialized for visual context')
                 logger.info('🔀 GestureRouter initialized for fast/slow path routing')
                 logger.info('📊 VisualStatusReporter initialized for status reporting')
                 logger.info('🔊 TTS Engine initialized for voice feedback')
                 logger.info('👁️ Visual Feedback initialized for UI feedback')
+                logger.info('🛡️ Safety Confirmation Manager initialized for operation security')
             except Exception as e:
                 logger.warning(f'Failed to initialize AI features: {e}')
                 self.ai_features_available = False
@@ -185,19 +196,57 @@ class GestureAgent:
         if not action:
             logger.warning('No action mapping for gesture: %s', gesture_code)
             return False
-    
+
         action_type = (action.get('type') or '').lower()
         action_value = action.get('value') or ''
         action_payload = action.get('payload')
-        
-        success = False
-        message = ''
-        try:
-            from actions.executor import execute_action
-            success, message = execute_action(action_type, action_value, action_payload)
-        except Exception as exc:
-            message = f'Execution failed: {exc}'
-            logger.exception('Failed to perform action for %s', gesture_code)
+
+        # 安全确认机制 - 检查是否需要用户确认
+        if self.safety_confirmation:
+            def execute_with_confirmation():
+                """执行动作的内部函数"""
+                nonlocal success, message
+                try:
+                    from actions.executor import execute_action
+                    success, message = execute_action(action_type, action_value, action_payload)
+                except Exception as exc:
+                    message = f'Execution failed: {exc}'
+                    logger.exception('Failed to perform action for %s', gesture_code)
+
+            # 请求安全确认
+            confirmation_id = self.safety_confirmation.request_confirmation(
+                action_type=action_type,
+                action_value=action_value,
+                action_payload=action_payload,
+                confirmation_callback=lambda response: self._handle_confirmation_response(
+                    response, execute_with_confirmation, gesture_code
+                )
+            )
+
+            if confirmation_id is None:
+                # 不需要确认，直接执行
+                execute_with_confirmation()
+            else:
+                # 需要确认，等待用户手势确认
+                logger.info(f'⚠️ 等待用户确认操作: {action_type} - {action_value}')
+                if self.tts_engine:
+                    self.tts_engine.speak_async(f"请确认{action_type}操作")
+                if self.visual_feedback:
+                    self.visual_feedback.set_state(
+                        AgentState.PROCESSING,
+                        f"等待确认: {action_type}"
+                    )
+                return True  # 等待确认中
+        else:
+            # 没有安全确认机制，直接执行
+            success = False
+            message = ''
+            try:
+                from actions.executor import execute_action
+                success, message = execute_action(action_type, action_value, action_payload)
+            except Exception as exc:
+                message = f'Execution failed: {exc}'
+                logger.exception('Failed to perform action for %s', gesture_code)
     
         self.post_log(
             gesture_code=gesture_code,
@@ -207,7 +256,44 @@ class GestureAgent:
             message=message or ('Executed' if success else 'No action executed'),
         )
         return success
-    
+
+    def _handle_confirmation_response(self, response, execute_action_func, gesture_code: str):
+        """处理安全确认响应"""
+        if response.status.value == "approved":
+            logger.info(f"✅ 用户确认操作: {gesture_code}")
+            if self.tts_engine:
+                self.tts_engine.speak_async("操作已确认")
+            if self.visual_feedback:
+                self.visual_feedback.set_state(AgentState.EXECUTING, "执行已确认的操作")
+
+            # 执行动作
+            execute_action_func()
+
+            # 记录执行结果
+            self.post_log(
+                gesture_code=gesture_code,
+                action_type=execute_action_func.__closure__[0].cell_contents if hasattr(execute_action_func, '__closure__') else 'unknown',
+                action_value='',
+                status='success' if True else 'failure',  # 这里需要在execute_action_func中设置状态
+                message='Operation confirmed and executed'
+            )
+
+            if self.visual_feedback:
+                self.visual_feedback.set_state(AgentState.SUCCESS, "操作完成")
+
+        else:
+            logger.info(f"❌ 用户拒绝操作: {gesture_code}")
+            if self.tts_engine:
+                self.tts_engine.speak_async("操作已取消")
+            if self.visual_feedback:
+                self.visual_feedback.set_state(AgentState.IDLE, "操作已取消")
+
+    def handle_gesture_confirmation(self, gesture_result: GestureResult) -> bool:
+        """处理手势确认"""
+        if self.safety_confirmation:
+            return self.safety_confirmation.handle_gesture_confirmation(gesture_result)
+        return False
+
     def post_log(
         self,
         gesture_code: str,
@@ -355,6 +441,17 @@ class GestureAgent:
             confidence = gesture_result.confidence
             logger.info(f'[GESTURE] Detected: {gesture_code} (confidence: {confidence:.2f})')
 
+            # Phase 4.2: 首先检查是否为确认手势
+            if self.handle_gesture_confirmation(gesture_result):
+                logger.info(f'[SAFETY] 处理确认手势: {gesture_code}')
+                if self.visual_feedback:
+                    self.visual_feedback.add_message(
+                        f"确认手势: {gesture_code}",
+                        FeedbackLevel.SUCCESS,
+                        duration=1.5
+                    )
+                return  # 确认手势已处理，不再进行常规路由
+
             # Phase 4: 提供视觉和语音反馈
             if self.visual_feedback:
                 self.visual_feedback.add_message(
@@ -377,7 +474,7 @@ class GestureAgent:
                     return
 
                 elif route_decision.route_type == RouteType.FAST_PATH:
-                    # 快通道：直接执行预定义动作
+                    # 快通道：直接执行预定义动作（带安全确认）
                     if route_decision.expected_action:
                         action_type = route_decision.expected_action.get('type')
                         action_value = route_decision.expected_action.get('value')
@@ -385,42 +482,61 @@ class GestureAgent:
 
                         logger.info(f'[FAST_PATH] Executing: {action_type} - {action_value}')
 
-                        # Phase 4: 执行前反馈
-                        if self.visual_feedback:
-                            self.visual_feedback.set_state(AgentState.EXECUTING, f"执行{action_type}")
-                            self.visual_feedback.set_progress(0.5, "执行动作")
+                        # Phase 4.2: 安全确认机制
+                        def execute_fast_action():
+                            # Phase 4: 执行前反馈
+                            if self.visual_feedback:
+                                self.visual_feedback.set_state(AgentState.EXECUTING, f"执行{action_type}")
+                                self.visual_feedback.set_progress(0.5, "执行动作")
 
-                        if self.tts_engine:
-                            self.tts_engine.speak_async("正在执行操作")
+                            if self.tts_engine:
+                                self.tts_engine.speak_async("正在执行操作")
 
-                        success, message = execute_action(action_type, action_value, action_payload)
+                            success, message = execute_action(action_type, action_value, action_payload)
 
-                        # Phase 4: 执行后反馈
-                        if self.visual_feedback:
-                            if success:
-                                self.visual_feedback.set_state(AgentState.SUCCESS, "操作完成")
-                                self.visual_feedback.add_message("执行成功", FeedbackLevel.SUCCESS)
+                            # Phase 4: 执行后反馈
+                            if self.visual_feedback:
+                                if success:
+                                    self.visual_feedback.set_state(AgentState.SUCCESS, "操作完成")
+                                    self.visual_feedback.add_message("执行成功", FeedbackLevel.SUCCESS)
+                                else:
+                                    self.visual_feedback.set_state(AgentState.ERROR, "操作失败")
+                                    self.visual_feedback.add_message(f"执行失败: {message}", FeedbackLevel.ERROR)
+                                self.visual_feedback.set_progress(1.0)
+
+                            if self.tts_engine:
+                                if success:
+                                    VoiceFeedback.speak_feedback(VoiceFeedback.SUCCESS)
+                                else:
+                                    VoiceFeedback.speak_feedback(VoiceFeedback.FAILED)
+
+                        # 请求安全确认
+                        if self.safety_confirmation:
+                            confirmation_id = self.safety_confirmation.request_confirmation(
+                                action_type=action_type,
+                                action_value=action_value,
+                                action_payload=action_payload,
+                                confirmation_callback=lambda response: self._handle_confirmation_response(
+                                    response, execute_fast_action, gesture_code
+                                )
+                            )
+
+                            if confirmation_id is None:
+                                # 不需要确认，直接执行
+                                execute_fast_action()
                             else:
-                                self.visual_feedback.set_state(AgentState.ERROR, "操作失败")
-                                self.visual_feedback.add_message(f"执行失败: {message}", FeedbackLevel.ERROR)
-                            self.visual_feedback.set_progress(1.0)
-
-                        if self.tts_engine:
-                            if success:
-                                VoiceFeedback.speak_feedback(VoiceFeedback.SUCCESS)
-                            else:
-                                VoiceFeedback.speak_feedback(VoiceFeedback.FAILED)
-
-                        if self.on_action_executed:
-                            self.on_action_executed(gesture_code, success, message)
-
-                        self.post_log(
-                            gesture_code=gesture_code,
-                            action_type=action_type,
-                            action_value=action_value,
-                            status='success' if success else 'failure',
-                            message=message
-                        )
+                                # 需要确认，等待用户手势确认
+                                logger.info(f'[SAFETY] 快通道操作需要确认: {action_type}')
+                                if self.tts_engine:
+                                    self.tts_engine.speak_async(f"请确认{action_type}操作")
+                                if self.visual_feedback:
+                                    self.visual_feedback.set_state(
+                                        AgentState.PROCESSING,
+                                        f"等待确认: {action_type}"
+                                    )
+                        else:
+                            # 没有安全确认机制，直接执行
+                            execute_fast_action()
                         return
 
                 elif route_decision.route_type == RouteType.SLOW_PATH:

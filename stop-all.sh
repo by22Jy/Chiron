@@ -48,6 +48,7 @@ stop_service() {
 }
 
 # 停止所有服务
+stop_service "MCP Server" ".mcp.pid"
 stop_service "Backend" ".backend.pid"
 stop_service "AI Service" ".ai.pid"
 stop_service "Frontend" ".frontend.pid"
@@ -55,6 +56,10 @@ stop_service "Frontend" ".frontend.pid"
 # 额外检查并停止可能遗留的进程
 echo
 log_info "检查遗留进程..."
+
+# 查找并停止可能的MCP服务器进程
+pkill -f "real_mcp_server.py" 2>/dev/null && log_info "停止遗留的MCP服务器进程"
+pkill -f "mcp_http_server.py" 2>/dev/null && log_info "停止遗留的MCP HTTP服务器进程"
 
 # 查找并停止可能的Spring Boot进程
 pkill -f "spring-boot:run" 2>/dev/null && log_info "停止遗留的Spring Boot进程"
@@ -64,6 +69,10 @@ pkill -f "uvicorn main:app" 2>/dev/null && log_info "停止遗留的uvicorn进�
 
 # 查找并停止可能的npm dev进程
 pkill -f "vite.*dev" 2>/dev/null && log_info "停止遗留的Vite开发服务器"
+
+# 查找并停止可能的Python Agent进程
+pkill -f "main.py.*--realtime" 2>/dev/null && log_info "停止遗留的Agent进程"
+pkill -f "voice_simple_final.py" 2>/dev/null && log_info "停止遗留的语音Agent进程"
 
 echo
 log_info "所有YOLO-LLM服务已停止"

@@ -26,9 +26,21 @@ if %errorlevel% neq 0 (
 echo [成功] MySQL连接正常
 
 echo.
+echo 启动MCP服务器 (端口: 8082)...
+cd /d "%~dp0mcp"
+if not exist ".venv" (
+    echo 创建Python虚拟环境...
+    python -m venv .venv
+)
+call .venv\Scripts\activate.bat
+pip install -r requirements.txt -q
+start "YOLO-LLM MCP Server" cmd /c ".venv\Scripts\activate.bat && set NEWS_API_KEY=%NEWS_API_KEY% && set WEATHER_API_KEY=%WEATHER_API_KEY% && set BREVO_API_KEY=%BREVO_API_KEY% && python real_mcp_server.py"
+timeout /t 5 /nobreak
+
+echo.
 echo 启动后端服务 (端口: 8080)...
 cd /d "%~dp0backend"
-start "YOLO-LLM Backend" cmd /c "mvn spring-boot:run"
+start "YOLO-LLM Backend" cmd /c "set MCP_SERVER_URL=http://localhost:8082 && mvn spring-boot:run"
 timeout /t 10 /nobreak
 
 echo.
@@ -62,9 +74,16 @@ echo.
 echo ===================================
 echo       所有服务启动完成
 echo ===================================
+echo MCP服务器: http://localhost:8082
 echo 后端API: http://localhost:8080
 echo AI服务:  http://localhost:8000
 echo 前端界面: http://localhost:5173
+echo.
+echo 可用功能:
+echo - 新闻查询: POST http://localhost:8082/mcp/news
+echo - 天气查询: POST http://localhost:8082/mcp/weather
+echo - 邮件发送: POST http://localhost:8082/mcp/email
+echo - 高级电脑控制: POST http://localhost:8082/mcp/computer_control
 echo.
 echo Agent启动选项：
 echo.

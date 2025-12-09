@@ -32,5 +32,14 @@ colorlog==6.8.0
 pytest==7.4.3
 pytest-asyncio==0.21.1
 
+# 真实API集成
+newsapi-python==0.2.7
+sib-api-v3-sdk==7.5.0
+python-dotenv==1.0.0
+
+# Windows平台支持
+pywin32==306
+opencv-python==4.8.1.78
+
 # 可选：DeepSeek API客户端（如果有官方SDK）
 # deepseek-api==1.0.0

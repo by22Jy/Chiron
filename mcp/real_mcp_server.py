@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+from advanced_computer_control import computer_controller
 
 app = FastAPI(
     title="Real MCP Server",
@@ -57,7 +58,7 @@ async def health_check():
             "smtp": "configured" if all([SMTP_USERNAME, SMTP_PASSWORD]) else "not_configured"
         },
         "available_tools": [
-            "news", "weather", "email", "filesystem", "screenshot", "browser"
+            "news", "weather", "email", "filesystem", "screenshot", "browser", "computer_control", "application_workflow"
         ]
     }
 
@@ -94,6 +95,16 @@ async def get_tools():
             "name": "browser",
             "description": "浏览器控制",
             "parameters": ["action", "url"]
+        },
+        {
+            "name": "computer_control",
+            "description": "高级电脑控制",
+            "parameters": ["action", "app_name", "parameters"]
+        },
+        {
+            "name": "application_workflow",
+            "description": "应用程序工作流执行",
+            "parameters": ["app_name", "action", "game_name", "text", "parameters"]
         }
     ]
     return {"tools": tools}
@@ -298,6 +309,141 @@ async def handle_browser_tool(request: ToolRequest):
         }
     except Exception as e:
         print(f"浏览器工具错误: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/computer_control")
+async def handle_computer_control_tool(request: ToolRequest):
+    """处理高级电脑控制请求"""
+    try:
+        params = request.parameters
+        action = params.get("action", "screen_info")
+        app_name = params.get("app_name")
+        control_params = params.get("parameters", {})
+
+        print(f"执行MCP工具: computer_control, 参数: {params}")
+
+        if action == "screen_info":
+            # 获取屏幕信息
+            result = computer_controller.get_screen_info()
+        elif action == "launch_app":
+            # 启动应用程序
+            if not app_name:
+                raise ValueError("启动应用需要提供app_name参数")
+            success = computer_controller.launch_application(app_name)
+            result = {
+                "action": "launch_app",
+                "app_name": app_name,
+                "success": success,
+                "message": f"应用 {app_name} {'启动成功' if success else '启动失败'}"
+            }
+        elif action == "find_windows":
+            # 查找窗口
+            windows = computer_controller.get_all_windows()
+            result = {
+                "action": "find_windows",
+                "windows": [
+                    {
+                        "title": w.title,
+                        "process": w.process_name,
+                        "handle": w.handle,
+                        "visible": w.visible,
+                        "rect": w.rect
+                    } for w in windows
+                ]
+            }
+        elif action == "click_element":
+            # 点击屏幕元素
+            element_type = control_params.get("element_type")
+            text_contains = control_params.get("text_contains")
+
+            elements = computer_controller.find_screen_elements(element_type, text_contains)
+            if elements:
+                success = computer_controller.click_element(elements[0])
+                result = {
+                    "action": "click_element",
+                    "element": {
+                        "type": elements[0].element_type,
+                        "text": elements[0].text,
+                        "position": elements[0].position
+                    },
+                    "success": success
+                }
+            else:
+                result = {
+                    "action": "click_element",
+                    "success": False,
+                    "message": "未找到匹配的屏幕元素"
+                }
+        elif action == "type_text":
+            # 输入文本
+            text = control_params.get("text", "")
+            position = control_params.get("position")
+
+            success = computer_controller.type_text(text, position)
+            result = {
+                "action": "type_text",
+                "text": text[:100] + "..." if len(text) > 100 else text,
+                "success": success
+            }
+        else:
+            raise ValueError(f"不支持的电脑控制操作: {action}")
+
+        return {
+            "success": True,
+            "data": {
+                **result,
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+
+    except Exception as e:
+        print(f"电脑控制工具错误: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/application_workflow")
+async def handle_application_workflow_tool(request: ToolRequest):
+    """处理应用程序工作流请求"""
+    try:
+        params = request.parameters
+        app_name = params.get("app_name")
+        action = params.get("action")
+        game_name = params.get("game_name")
+        text = params.get("text")
+        workflow_params = params.get("parameters", {})
+
+        print(f"执行MCP工具: application_workflow, 参数: {params}")
+
+        if not app_name or not action:
+            raise ValueError("应用工作流需要提供app_name和action参数")
+
+        # 构建工作流参数
+        parameters = workflow_params.copy()
+        if game_name:
+            parameters["game_name"] = game_name
+        if text:
+            parameters["text"] = text
+
+        # 执行应用程序工作流
+        result = computer_controller.execute_application_workflow(app_name, action, parameters)
+
+        return {
+            "success": result["success"],
+            "data": {
+                "app_name": app_name,
+                "action": action,
+                "result": result,
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+
+    except Exception as e:
+        print(f"应用工作流工具错误: {str(e)}")
         return {
             "success": False,
             "error": str(e)

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from ultralytics import YOLO
 from PIL import Image
 import io, requests, base64
@@ -67,6 +68,10 @@ gesture_recognizers = {}
 
 # 全局MediaPipe手势检测器实例
 mediapipe_detector = MediaPipeGestureDetector()
+
+# URL请求模型类
+class URLRequest(BaseModel):
+    url: str
 
 
 @app.get("/health")
@@ -221,11 +226,13 @@ async def gesture_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gesture detection failed: {str(e)}")
 
-# ... (emotion and url endpoints remain the same)
+class URLRequest(BaseModel):
+    url: str
+
 @app.post("/detect/url")
-async def detect_url(url: str):
+async def detect_url(request: URLRequest):
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(request.url, timeout=10)
         resp.raise_for_status()
         image = Image.open(io.BytesIO(resp.content)).convert("RGB")
         return run_detect(image)
@@ -233,9 +240,9 @@ async def detect_url(url: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/analyze/url")
-async def analyze_url(url: str):
+async def analyze_url(request: URLRequest):
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(request.url, timeout=10)
         resp.raise_for_status()
         image = Image.open(io.BytesIO(resp.content)).convert("RGB")
         return run_analyze(image, SimpleGestureRecognizer())
@@ -268,7 +275,7 @@ async def emotion_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/emotion/url")
-async def emotion_url(url: str):
+async def emotion_url(request: URLRequest):
     try:
         from deepface import DeepFace
     except ImportError:
@@ -276,7 +283,7 @@ async def emotion_url(url: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"DeepFace 导入失败: {e}")
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(request.url, timeout=10)
         resp.raise_for_status()
         np_img = np.array(Image.open(io.BytesIO(resp.content)).convert("RGB"))[:, :, ::-1]
         result = DeepFace.analyze(np_img, actions=['emotion'], enforce_detection=False, detector_backend='opencv', align=False)

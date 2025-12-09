@@ -1,11 +1,24 @@
 import cv2
-import mediapipe as mp
 import numpy as np
 from typing import List, Optional, Tuple, Dict, Any
 from dataclasses import dataclass
 import time
 import math
 from collections import deque
+
+# Try to import mediapipe, but handle import errors gracefully
+try:
+    import mediapipe as mp
+    from google.protobuf import runtime_version
+    MEDIAPIPE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: MediaPipe not available - {e}")
+    MEDIAPIPE_AVAILABLE = False
+    mp = None
+except Exception as e:
+    print(f"Warning: MediaPipe initialization error - {e}")
+    MEDIAPIPE_AVAILABLE = False
+    mp = None
 
 @dataclass
 class GestureResult:
@@ -20,16 +33,23 @@ class MediaPipeGestureDetector:
                  min_detection_confidence: float = 0.5,
                  min_tracking_confidence: float = 0.5,
                  max_hands: int = 2):
-        self.mp_hands = mp.solutions.hands
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
+        if not MEDIAPIPE_AVAILABLE:
+            print('MediaPipe not available - gesture detector running in fallback mode')
+            self.mp_hands = None
+            self.mp_drawing = None
+            self.mp_drawing_styles = None
+            self.hands = None
+        else:
+            self.mp_hands = mp.solutions.hands
+            self.mp_drawing = mp.solutions.drawing_utils
+            self.mp_drawing_styles = mp.solutions.drawing_styles
 
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=max_hands,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
-        )
+            self.hands = self.mp_hands.Hands(
+                static_image_mode=False,
+                max_num_hands=max_hands,
+                min_detection_confidence=min_detection_confidence,
+                min_tracking_confidence=min_tracking_confidence
+            )
 
         # 动态手势检测器
         self.hand_history = deque(maxlen=20)
@@ -40,11 +60,19 @@ class MediaPipeGestureDetector:
         self.last_gesture_time = 0
         self.gesture_cooldown = 1.0  # seconds between gestures
 
-        print('MediaPipe gesture detector initialized with dynamic gesture support')
+        if MEDIAPIPE_AVAILABLE:
+            print('MediaPipe gesture detector initialized with dynamic gesture support')
+        else:
+            print('Gesture detector initialized in fallback mode')
 
     def detect_hands(self, image: np.ndarray) -> Optional[List[GestureResult]]:
         if image is None:
             return None
+
+        # Check if MediaPipe is available
+        if not MEDIAPIPE_AVAILABLE or self.hands is None:
+            # Return empty list in fallback mode
+            return []
 
         # Convert BGR to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

@@ -41,7 +41,17 @@
       "Bash(set:*)",
       "Bash(set WEATHER_API_KEY=:*)",
       "Bash(cmd:*)",
-      "Bash(uvicorn:*)"
+      "Bash(uvicorn:*)",
+      "Bash(.start-clean.ps1)",
+      "Bash(..venvScriptspip.exe install:*)",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install \"protobuf==3.20.3\" --force-reinstall)",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install \"protobuf>=4.25.3,<5\" --force-reinstall)",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install \"tensorflow==2.13.0\" --force-reinstall)",
+      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"import main; print(''Import successful'')\")",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install requests)",
+      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"import requests; print(''requests imported successfully'')\")",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" list)",
+      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\ntry:\n    import mediapipe as mp\n    print(''MediaPipe version:'', mp.__version__)\n    from google.protobuf import runtime_version\n    print(''protobuf runtime_version available'')\nexcept ImportError as e:\n    print(''MediaPipe not available:'', e)\nexcept Exception as e:\n    print(''Error:'', e)\n\")"
     ],
     "deny": [],
     "ask": []

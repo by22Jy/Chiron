@@ -36,6 +36,16 @@ try:
 except ImportError:
     health_monitor = None
 
+# 导入社交媒体工具模块
+try:
+    from mcp.social_media_tools import social_manager, SocialPlatform, SocialContact, SocialMessage, MassMessage
+except ImportError:
+    social_manager = None
+    SocialPlatform = None
+    SocialContact = None
+    SocialMessage = None
+    MassMessage = None
+
 # API Keys
 NEWS_API_KEY = os.getenv('NEWS_API_KEY')
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
@@ -77,7 +87,7 @@ async def health_check():
             "weather_api": "configured" if WEATHER_API_KEY else "not_configured",
             "smtp": "configured" if BREVO_API_KEY else "not_configured"
         },
-        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "automation", "voice_control", "system_health", "health_monitor"],
+        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "automation", "voice_control", "system_health", "health_monitor", "social_media", "contact_management"],
         "cache_stats": mcp_cache.get_stats(),
         "error_summary": mcp_error_handler.get_error_summary()
     }
@@ -715,6 +725,323 @@ async def handle_health_monitor_tool(request: ToolRequest):
 
         duration = time.time() - start_time
         mcp_monitor.record_request(tool_name, duration, True)
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/social_media")
+async def handle_social_media_tool(request: ToolRequest):
+    """处理社交媒体工具请求"""
+    start_time = time.time()
+    tool_name = "social_media"
+    params = request.parameters
+    action = params.get("action", "send")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}")
+
+        if not social_manager:
+            return {
+                "success": False,
+                "error": "社交媒体模块未加载"
+            }
+
+        if action == "send_message":
+            # 发送单条消息
+            platform_name = params.get("platform", "wechat")
+            recipient_name = params.get("recipient_name", "")
+            recipient_id = params.get("recipient_id", "")
+            content = params.get("content", "")
+            message_type = params.get("message_type", "text")
+            attachments = params.get("attachments", [])
+
+            platform = SocialPlatform(platform_name)
+
+            # 查找或创建联系人
+            contact = social_manager.find_contact(platform, recipient_id)
+            if not contact:
+                contact = SocialContact(
+                    name=recipient_name or recipient_id,
+                    platform=platform,
+                    identifier=recipient_id
+                )
+
+            # 创建消息
+            message = SocialMessage(
+                id=f"msg_{int(time.time())}_{recipient_id}",
+                platform=platform,
+                recipient=contact,
+                content=content,
+                message_type=message_type,
+                attachments=attachments
+            )
+
+            # 发送消息
+            success = social_manager.send_message(message)
+
+            result = {
+                "success": success,
+                "data": {
+                    "action": action,
+                    "message_id": message.id,
+                    "platform": platform_name,
+                    "recipient": recipient_name or recipient_id,
+                    "content": content[:100] + "..." if len(content) > 100 else content,
+                    "message_type": message_type,
+                    "status": message.status.value,
+                    "sent_at": message.sent_at.isoformat() if message.sent_at else None,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "send_mass_message":
+            # 发送群发消息
+            platform_name = params.get("platform", "wechat")
+            recipients = params.get("recipients", [])
+            content = params.get("content", "")
+            message_type = params.get("message_type", "text")
+            attachments = params.get("attachments", [])
+            send_interval = params.get("send_interval", 2.0)
+            batch_size = params.get("batch_size", 10)
+
+            platform = SocialPlatform(platform_name)
+
+            # 创建联系人列表
+            contacts = []
+            for recipient in recipients:
+                contact = social_manager.find_contact(platform, recipient.get("id"))
+                if not contact:
+                    contact = SocialContact(
+                        name=recipient.get("name"),
+                        platform=platform,
+                        identifier=recipient.get("id"),
+                        group_name=recipient.get("group_name")
+                    )
+                    social_manager.add_contact(contact)
+                contacts.append(contact)
+
+            # 创建群发消息
+            mass_message = MassMessage(
+                id=f"mass_{int(time.time())}",
+                platform=platform,
+                recipients=contacts,
+                content=content,
+                message_type=message_type,
+                attachments=attachments,
+                send_interval=send_interval,
+                batch_size=batch_size
+            )
+
+            # 执行群发
+            send_result = social_manager.send_mass_message(mass_message)
+
+            result = {
+                "success": send_result["success"],
+                "data": {
+                    "action": action,
+                    "mass_message_id": mass_message.id,
+                    "platform": platform_name,
+                    "total_recipients": send_result["total_recipients"],
+                    "sent_count": send_result["sent_count"],
+                    "failed_count": send_result["failed_count"],
+                    "success_rate": send_result["success_rate"],
+                    "duration": send_result.get("duration", 0),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "get_statistics":
+            # 获取消息统计
+            stats = social_manager.get_message_statistics()
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    **stats,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "get_recent_messages":
+            # 获取最近消息
+            limit = params.get("limit", 20)
+            recent_messages = social_manager.get_message_statistics()["recent_messages"][:limit]
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "messages": recent_messages,
+                    "count": len(recent_messages),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result["success"])
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/contact_management")
+async def handle_contact_management_tool(request: ToolRequest):
+    """处理联系人管理工具请求"""
+    start_time = time.time()
+    tool_name = "contact_management"
+    params = request.parameters
+    action = params.get("action", "list")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}")
+
+        if not social_manager:
+            return {
+                "success": False,
+                "error": "社交媒体模块未加载"
+            }
+
+        if action == "add_contact":
+            # 添加联系人
+            platform_name = params.get("platform", "wechat")
+            name = params.get("name", "")
+            identifier = params.get("identifier", "")
+            group_name = params.get("group_name")
+            nickname = params.get("nickname")
+            notes = params.get("notes")
+
+            platform = SocialPlatform(platform_name)
+
+            contact = SocialContact(
+                name=name,
+                platform=platform,
+                identifier=identifier,
+                group_name=group_name,
+                nickname=nickname,
+                notes=notes
+            )
+
+            success = social_manager.add_contact(contact)
+
+            result = {
+                "success": success,
+                "data": {
+                    "action": action,
+                    "contact": {
+                        "name": name,
+                        "platform": platform_name,
+                        "identifier": identifier,
+                        "group_name": group_name,
+                        "nickname": nickname,
+                        "notes": notes
+                    },
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "list_contacts":
+            # 列出联系人
+            platform_name = params.get("platform")  # 可选，筛选特定平台
+            group_name = params.get("group_name")    # 可选，筛选特定群组
+
+            if platform_name:
+                platform = SocialPlatform(platform_name)
+                contacts = social_manager.get_contacts_by_platform(platform)
+            else:
+                contacts = list(social_manager.contacts.values())
+
+            # 进一步筛选
+            if group_name:
+                contacts = [c for c in contacts if c.group_name == group_name]
+
+            contact_list = []
+            for contact in contacts:
+                contact_list.append({
+                    "name": contact.name,
+                    "platform": contact.platform.value,
+                    "identifier": contact.identifier,
+                    "group_name": contact.group_name,
+                    "nickname": contact.nickname,
+                    "notes": contact.notes
+                })
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "contacts": contact_list,
+                    "count": len(contact_list),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "find_contact":
+            # 查找联系人
+            platform_name = params.get("platform", "wechat")
+            identifier = params.get("identifier", "")
+
+            platform = SocialPlatform(platform_name)
+            contact = social_manager.find_contact(platform, identifier)
+
+            if contact:
+                contact_data = {
+                    "name": contact.name,
+                    "platform": contact.platform.value,
+                    "identifier": contact.identifier,
+                    "group_name": contact.group_name,
+                    "nickname": contact.nickname,
+                    "notes": contact.notes
+                }
+            else:
+                contact_data = None
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "contact": contact_data,
+                    "found": contact is not None,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "get_platform_stats":
+            # 获取平台统计
+            stats = social_manager.get_message_statistics()
+            platform_stats = stats["platform_statistics"]
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "platform_statistics": platform_stats,
+                    "total_contacts": stats["total_contacts"],
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result["success"])
         return result
 
     except Exception as e:

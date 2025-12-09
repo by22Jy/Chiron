@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from advanced_computer_control import computer_controller
+# from advanced_computer_control import computer_controller  # 暂时注释掉
 
 app = FastAPI(
     title="Real MCP Server",
@@ -453,38 +453,62 @@ async def handle_application_workflow_tool(request: ToolRequest):
 async def get_real_news(count: int, country: str) -> List[str]:
     """获取真实新闻"""
     try:
-        url = "https://newsapi.org/v2/top-headlines"
-        params = {
-            'apiKey': NEWS_API_KEY,
-            'country': country,
-            'pageSize': min(count, 100),
-            'sortBy': 'publishedAt',
-            'language': 'zh'
-        }
+        # 使用newsapi-python客户端
+        from newsapi import NewsApiClient
+        newsapi = NewsApiClient(api_key=NEWS_API_KEY)
 
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-
-        articles = data.get('articles', [])
         news_list = []
+
+        # 策略1: 尝试获取用户指定国家的新闻
+        if country == 'cn':
+            # 对于中国，尝试关键词搜索中文内容
+            response = newsapi.get_everything(
+                q='科技 OR 财经 OR 国际',
+                language='zh',
+                sort_by='publishedAt',
+                page_size=min(count, 100)
+            )
+        else:
+            # 对于其他国家，获取头条新闻
+            response = newsapi.get_top_headlines(
+                country=country,
+                page_size=min(count, 100),
+                sort_by='publishedAt'
+            )
+
+        articles = response.get('articles', [])
+
+        # 如果没有结果，使用备用策略
+        if len(articles) == 0:
+            print(f"国家 {country} 无新闻结果，使用英文科技新闻作为备用")
+            response = newsapi.get_top_headlines(
+                category='technology',
+                language='en',
+                page_size=min(count, 100)
+            )
+            articles = response.get('articles', [])
 
         for i, article in enumerate(articles[:count], 1):
             title = article.get('title', '').strip()
             description = article.get('description', '').strip()
-            source = article.get('source', {}).get('name', '未知来源')
+            source = article.get('source', {}).get('name', 'Unknown Source')
+
+            # 过滤掉None值和空字符串
+            if not title:
+                continue
 
             news_item = f"{i}. {title}"
-            if description and description != title:
-                news_item += f" - {description[:100]}..."
+            if description and description != title and len(description) > 10:
+                news_item += f" - {description[:200]}..."
             news_item += f" (来源: {source})"
 
             news_list.append(news_item)
 
+        print(f"成功获取 {len(news_list)} 条新闻")
         return news_list
 
     except Exception as e:
-        print(f"获取真实新闻失败: {str(e)}")
+        print(f"获取新闻失败: {str(e)}")
         return get_mock_news(count)
 
 async def get_real_weather(city: str, units: str, lang: str) -> Dict[str, Any]:

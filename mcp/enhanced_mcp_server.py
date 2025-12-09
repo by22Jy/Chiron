@@ -22,6 +22,19 @@ from mcp_utils import (
     retry_with_backoff, timeout_handler, mcp_cache, mcp_monitor, mcp_error_handler,
     MCPRetryException, MCPTimeoutException
 )
+# # from mcp.enhanced_computer_control import enhanced_controller
+# 临时注释掉，使用基础控制器
+try:
+    from mcp.advanced_computer_control import computer_controller
+    enhanced_controller = computer_controller
+except ImportError:
+    enhanced_controller = None
+
+# 导入健康监控模块
+try:
+    from mcp.system_health_monitor import health_monitor
+except ImportError:
+    health_monitor = None
 
 # API Keys
 NEWS_API_KEY = os.getenv('NEWS_API_KEY')
@@ -64,7 +77,7 @@ async def health_check():
             "weather_api": "configured" if WEATHER_API_KEY else "not_configured",
             "smtp": "configured" if BREVO_API_KEY else "not_configured"
         },
-        "available_tools": ["news", "weather", "email", "filesystem"],
+        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "automation", "voice_control", "system_health", "health_monitor"],
         "cache_stats": mcp_cache.get_stats(),
         "error_summary": mcp_error_handler.get_error_summary()
     }
@@ -310,6 +323,403 @@ async def handle_filesystem_tool(request: ToolRequest):
         duration = time.time() - start_time
         mcp_monitor.record_request(tool_name, duration, False, str(e))
 
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/computer_control")
+async def handle_computer_control_tool(request: ToolRequest):
+    """处理高级电脑控制工具请求"""
+    start_time = time.time()
+    tool_name = "computer_control"
+    params = request.parameters
+    action = params.get("action", "")
+    app_name = params.get("app_name", "")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}, 应用: {app_name}")
+
+        if not enhanced_controller:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        if action == "launch":
+            # 启动应用程序
+            success = enhanced_controller.launch_application(app_name)
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "app_name": app_name,
+                    "success": success,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "find_window":
+            # 查找窗口
+            keywords = params.get("keywords", [app_name])
+            window = enhanced_controller.find_window_by_title(keywords)
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "keywords": keywords,
+                    "window_found": window is not None,
+                    "window_info": {
+                        "title": window.title,
+                        "process": window.process_name,
+                        "rect": window.rect
+                    } if window else None,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "screen_info":
+            # 获取屏幕信息
+            screen_info = enhanced_controller.get_screen_info()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    **screen_info,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "find_element":
+            # 智能查找屏幕元素
+            element_type = params.get("element_type", "button")
+            search_params = params.get("search_params", {})
+            element = enhanced_controller.smart_find_element(element_type, search_params)
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "element_type": element_type,
+                    "element_found": element is not None,
+                    "element_info": {
+                        "text": element.text,
+                        "position": element.position,
+                        "size": element.size,
+                        "confidence": element.confidence
+                    } if element else None,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "click_element":
+            # 点击屏幕元素
+            element_type = params.get("element_type", "button")
+            search_params = params.get("search_params", {})
+            element = enhanced_controller.smart_find_element(element_type, search_params)
+            if element:
+                success = enhanced_controller.click_element(element)
+                result = {
+                    "success": True,
+                    "data": {
+                        "action": action,
+                        "element_type": element_type,
+                        "element_text": element.text,
+                        "click_success": success,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }
+            else:
+                result = {
+                    "success": False,
+                    "error": f"未找到元素: {element_type}"
+                }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, True)
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/automation")
+async def handle_automation_tool(request: ToolRequest):
+    """处理自动化工作流工具请求"""
+    start_time = time.time()
+    tool_name = "automation"
+    params = request.parameters
+    workflow_name = params.get("workflow_name", "")
+    steps = params.get("steps", [])
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 工作流: {workflow_name}")
+
+        # 如果是预设工作流
+        if workflow_name == "steam_purchase" and params.get("game_name"):
+            game_name = params["game_name"]
+            steps = enhanced_controller.create_steam_purchase_workflow(game_name)
+
+        # 转换步骤数据
+        automation_steps = []
+        for step_data in steps:
+            from mcp.enhanced_computer_control import AutomationStep
+            automation_step = AutomationStep(
+                action=step_data.get("action", ""),
+                parameters=step_data.get("parameters", {}),
+                description=step_data.get("description", ""),
+                wait_before=step_data.get("wait_before", 0.0),
+                wait_after=step_data.get("wait_after", 0.0),
+                condition=step_data.get("condition")
+            )
+            automation_steps.append(automation_step)
+
+        # 执行工作流
+        workflow_result = enhanced_controller.execute_automation_workflow(workflow_name, automation_steps)
+
+        result = {
+            "success": workflow_result["success"],
+            "data": {
+                "workflow_name": workflow_name,
+                "total_steps": len(steps),
+                "executed_steps": len(workflow_result["executed_steps"]),
+                "failed_step": workflow_result["failed_step"],
+                "duration": workflow_result["duration"],
+                "steps_details": workflow_result["executed_steps"],
+                "message": workflow_result["message"],
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, workflow_result["success"])
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/voice_control")
+async def handle_voice_control_tool(request: ToolRequest):
+    """处理语音控制工具请求"""
+    start_time = time.time()
+    tool_name = "voice_control"
+    params = request.parameters
+    action = params.get("action", "")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}")
+
+        if action == "start":
+            # 启动语音控制
+            voice_result = enhanced_controller.start_voice_control()
+            result = {
+                "success": voice_result["success"],
+                "data": {
+                    "action": action,
+                    "voice_enabled": enhanced_controller.voice_enabled,
+                    "available_commands": voice_result.get("available_commands", []),
+                    "message": voice_result.get("message", ""),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "stop":
+            # 停止语音控制
+            enhanced_controller.stop_voice_control()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "voice_enabled": enhanced_controller.voice_enabled,
+                    "message": "语音控制已停止",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, True)
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/system_health")
+async def handle_system_health_tool(request: ToolRequest):
+    """处理系统健康检查工具请求"""
+    start_time = time.time()
+    tool_name = "system_health"
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}")
+
+        # 获取系统健康信息
+        health_info = enhanced_controller.get_system_health_info()
+
+        result = {
+            "success": True,
+            "data": {
+                "tool_name": tool_name,
+                "health_info": health_info,
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, True)
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, {})
+        return error_response
+
+@app.post("/mcp/health_monitor")
+async def handle_health_monitor_tool(request: ToolRequest):
+    """处理健康监控工具请求"""
+    start_time = time.time()
+    tool_name = "health_monitor"
+    params = request.parameters
+    action = params.get("action", "summary")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}")
+
+        if not health_monitor:
+            return {
+                "success": False,
+                "error": "健康监控模块未加载"
+            }
+
+        if action == "start":
+            # 启动健康监控
+            health_monitor.start_monitoring()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "monitoring_active": health_monitor.monitoring_active,
+                    "message": "健康监控已启动",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "stop":
+            # 停止健康监控
+            health_monitor.stop_monitoring()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "monitoring_active": health_monitor.monitoring_active,
+                    "message": "健康监控已停止",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "summary":
+            # 获取健康状态摘要
+            summary = health_monitor.get_health_summary()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    **summary,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "detailed_metrics":
+            # 获取详细指标
+            metrics = health_monitor.get_detailed_metrics()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "metrics": metrics,
+                    "metrics_count": len(metrics),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "alert_history":
+            # 获取告警历史
+            limit = params.get("limit", 50)
+            alert_history = health_monitor.get_alert_history(limit)
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "alert_history": alert_history,
+                    "count": len(alert_history),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "resolve_alert":
+            # 解决告警
+            alert_id = params.get("alert_id")
+            if not alert_id:
+                result = {
+                    "success": False,
+                    "error": "缺少告警ID参数"
+                }
+            else:
+                success = health_monitor.resolve_alert(alert_id)
+                result = {
+                    "success": success,
+                    "data": {
+                        "action": action,
+                        "alert_id": alert_id,
+                        "resolved": success,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }
+
+        elif action == "collect_now":
+            # 立即收集指标
+            health_monitor._collect_metrics()
+            summary = health_monitor.get_health_summary()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "message": "指标收集完成",
+                    "latest_summary": summary,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, True)
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
         error_response = mcp_error_handler.handle_error(e, tool_name, params)
         return error_response
 

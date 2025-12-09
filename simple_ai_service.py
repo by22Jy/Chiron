@@ -93,8 +93,87 @@ async def test_endpoint():
     """测试端点"""
     return {
         "message": "AI服务测试成功",
-        "features": ["图像检测", "手势识别", "姿态估计"],
+        "features": ["图像检测", "手势识别", "姿态估计", "语音识别", "人脸识别", "OCR"],
         "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/speech_synthesize")
+async def synthesize_speech(request: AnalyzeRequest):
+    """模拟语音合成"""
+    await asyncio.sleep(0.4)
+
+    text = request.description or "默认语音合成测试"
+
+    return {
+        "success": True,
+        "text": text,
+        "audio_format": "wav",
+        "duration": 2.5,
+        "sample_rate": 16000,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/face_recognition")
+async def recognize_face(request: AnalyzeRequest):
+    """模拟人脸识别"""
+    await asyncio.sleep(0.7)
+
+    return {
+        "success": True,
+        "faces": [
+            {
+                "id": "face_001",
+                "confidence": 0.93,
+                "bbox": [80, 60, 200, 180],
+                "landmarks": [[100, 100], [110, 105], [120, 110], [130, 115], [140, 120], [170, 130], [180, 125]],
+                "emotion": "happy",
+                "age_range": "25-35",
+                "gender": "male"
+            }
+        ],
+        "timestamp": datetime.now().isoformat(),
+        "processing_time": 0.7
+    }
+
+@app.post("/ocr")
+async def extract_text(request: AnalyzeRequest):
+    """模拟OCR文字提取"""
+    await asyncio.sleep(0.5)
+
+    return {
+        "success": True,
+        "text": "这是模拟的OCR识别结果\n包含中文字符和数字123",
+        "confidence": 0.88,
+        "bounding_boxes": [
+            {"text": "这是", "bbox": [50, 50, 100, 70], "confidence": 0.90},
+            {"text": "模拟的", "bbox": [105, 50, 150, 70], "confidence": 0.92},
+            {"text": "OCR识别结果", "bbox": [155, 50, 230, 70], "confidence": 0.85}
+        ],
+        "timestamp": datetime.now().isoformat(),
+        "processing_time": 0.5
+    }
+
+@app.post("/speech_recognize")
+async def recognize_speech(request: AnalyzeRequest):
+    """模拟语音识别"""
+    await asyncio.sleep(1.2)
+
+    # 模拟语音识别结果
+    sample_texts = [
+        "你好",
+        "测试语音识别",
+        "打开记事本",
+        "语音控制测试"
+    ]
+    recognized_text = sample_texts[hash(request.description) % len(sample_texts)]
+
+    return {
+        "success": True,
+        "text": recognized_text,
+        "confidence": 0.85,
+        "language": "zh-CN",
+        "timestamp": datetime.now().isoformat(),
+        "processing_time": 1.2
     }
 
 if __name__ == "__main__":

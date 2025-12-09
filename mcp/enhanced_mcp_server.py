@@ -22,13 +22,15 @@ from mcp_utils import (
     retry_with_backoff, timeout_handler, mcp_cache, mcp_monitor, mcp_error_handler,
     MCPRetryException, MCPTimeoutException
 )
-# # from mcp.enhanced_computer_control import enhanced_controller
-# 临时注释掉，使用基础控制器
+# 导入通用电脑控制模块
 try:
-    from mcp.advanced_computer_control import computer_controller
-    enhanced_controller = computer_controller
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from universal_computer_control import execute_computer_action, get_computer_stats
+    enhanced_controller_available = True
 except ImportError:
-    enhanced_controller = None
+    enhanced_controller_available = False
 
 # 导入健康监控模块
 try:
@@ -95,7 +97,7 @@ async def health_check():
             "weather_api": "configured" if WEATHER_API_KEY else "not_configured",
             "smtp": "configured" if BREVO_API_KEY else "not_configured"
         },
-        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "automation", "voice_control", "system_health", "health_monitor", "social_media", "contact_management", "deepseek_llm", "task_management"],
+        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "mouse_control", "keyboard_control", "screen_control", "file_control", "process_control", "system_control", "computer_stats", "automation", "voice_control", "system_health", "health_monitor", "social_media", "contact_management", "deepseek_llm", "task_management"],
         "cache_stats": mcp_cache.get_stats(),
         "error_summary": mcp_error_handler.get_error_summary()
     }
@@ -346,124 +348,359 @@ async def handle_filesystem_tool(request: ToolRequest):
 
 @app.post("/mcp/computer_control")
 async def handle_computer_control_tool(request: ToolRequest):
-    """处理高级电脑控制工具请求"""
+    """处理通用电脑控制工具请求"""
     start_time = time.time()
     tool_name = "computer_control"
     params = request.parameters
     action = params.get("action", "")
-    app_name = params.get("app_name", "")
 
     try:
-        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}, 应用: {app_name}")
+        print(f"执行通用电脑控制工具: {tool_name}, 动作: {action}")
 
-        if not enhanced_controller:
+        if not enhanced_controller_available:
             return {
                 "success": False,
                 "error": "电脑控制模块未加载"
             }
 
-        if action == "launch":
-            # 启动应用程序
-            success = enhanced_controller.launch_application(app_name)
-            result = {
+        # 使用通用电脑控制模块执行动作
+        result = await execute_computer_action("app", params)
+
+        if result.success:
+            response = {
                 "success": True,
                 "data": {
+                    "tool_name": tool_name,
                     "action": action,
-                    "app_name": app_name,
-                    "success": success,
+                    "result_data": result.data,
+                    "message": result.message,
                     "timestamp": datetime.now().isoformat()
                 }
             }
-
-        elif action == "find_window":
-            # 查找窗口
-            keywords = params.get("keywords", [app_name])
-            window = enhanced_controller.find_window_by_title(keywords)
-            result = {
-                "success": True,
-                "data": {
-                    "action": action,
-                    "keywords": keywords,
-                    "window_found": window is not None,
-                    "window_info": {
-                        "title": window.title,
-                        "process": window.process_name,
-                        "rect": window.rect
-                    } if window else None,
-                    "timestamp": datetime.now().isoformat()
-                }
-            }
-
-        elif action == "screen_info":
-            # 获取屏幕信息
-            screen_info = enhanced_controller.get_screen_info()
-            result = {
-                "success": True,
-                "data": {
-                    "action": action,
-                    **screen_info,
-                    "timestamp": datetime.now().isoformat()
-                }
-            }
-
-        elif action == "find_element":
-            # 智能查找屏幕元素
-            element_type = params.get("element_type", "button")
-            search_params = params.get("search_params", {})
-            element = enhanced_controller.smart_find_element(element_type, search_params)
-            result = {
-                "success": True,
-                "data": {
-                    "action": action,
-                    "element_type": element_type,
-                    "element_found": element is not None,
-                    "element_info": {
-                        "text": element.text,
-                        "position": element.position,
-                        "size": element.size,
-                        "confidence": element.confidence
-                    } if element else None,
-                    "timestamp": datetime.now().isoformat()
-                }
-            }
-
-        elif action == "click_element":
-            # 点击屏幕元素
-            element_type = params.get("element_type", "button")
-            search_params = params.get("search_params", {})
-            element = enhanced_controller.smart_find_element(element_type, search_params)
-            if element:
-                success = enhanced_controller.click_element(element)
-                result = {
-                    "success": True,
-                    "data": {
-                        "action": action,
-                        "element_type": element_type,
-                        "element_text": element.text,
-                        "click_success": success,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                }
-            else:
-                result = {
-                    "success": False,
-                    "error": f"未找到元素: {element_type}"
-                }
-
         else:
-            result = {
+            response = {
                 "success": False,
-                "error": f"未知动作: {action}"
+                "error": result.message
             }
 
         duration = time.time() - start_time
-        mcp_monitor.record_request(tool_name, duration, True)
-        return result
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
 
     except Exception as e:
         duration = time.time() - start_time
         mcp_monitor.record_request(tool_name, duration, False, str(e))
         error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/mouse_control")
+async def handle_mouse_control_tool(request: ToolRequest):
+    """处理鼠标控制工具请求"""
+    start_time = time.time()
+    tool_name = "mouse_control"
+    params = request.parameters
+
+    try:
+        print(f"执行鼠标控制工具: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        result = await execute_computer_action("mouse", params)
+
+        if result.success:
+            response = {
+                "success": True,
+                "data": {
+                    "tool_name": tool_name,
+                    "result_data": result.data,
+                    "message": result.message,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        else:
+            response = {
+                "success": False,
+                "error": result.message
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/keyboard_control")
+async def handle_keyboard_control_tool(request: ToolRequest):
+    """处理键盘控制工具请求"""
+    start_time = time.time()
+    tool_name = "keyboard_control"
+    params = request.parameters
+
+    try:
+        print(f"执行键盘控制工具: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        # 确定动作类型
+        action = params.get("action", "")
+        if action == "text":
+            result = await execute_computer_action("text", params)
+        elif action == "hotkey":
+            result = await execute_computer_action("hotkey", params)
+        else:
+            return {
+                "success": False,
+                "error": f"不支持的键盘动作: {action}"
+            }
+
+        if result.success:
+            response = {
+                "success": True,
+                "data": {
+                    "tool_name": tool_name,
+                    "result_data": result.data,
+                    "message": result.message,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        else:
+            response = {
+                "success": False,
+                "error": result.message
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/screen_control")
+async def handle_screen_control_tool(request: ToolRequest):
+    """处理屏幕控制工具请求"""
+    start_time = time.time()
+    tool_name = "screen_control"
+    params = request.parameters
+
+    try:
+        print(f"执行屏幕控制工具: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        result = await execute_computer_action("screen", params)
+
+        if result.success:
+            response = {
+                "success": True,
+                "data": {
+                    "tool_name": tool_name,
+                    "result_data": result.data,
+                    "message": result.message,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        else:
+            response = {
+                "success": False,
+                "error": result.message
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/file_control")
+async def handle_file_control_tool(request: ToolRequest):
+    """处理文件控制工具请求"""
+    start_time = time.time()
+    tool_name = "file_control"
+    params = request.parameters
+
+    try:
+        print(f"执行文件控制工具: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        result = await execute_computer_action("file", params)
+
+        if result.success:
+            response = {
+                "success": True,
+                "data": {
+                    "tool_name": tool_name,
+                    "result_data": result.data,
+                    "message": result.message,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        else:
+            response = {
+                "success": False,
+                "error": result.message
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/process_control")
+async def handle_process_control_tool(request: ToolRequest):
+    """处理进程控制工具请求"""
+    start_time = time.time()
+    tool_name = "process_control"
+    params = request.parameters
+
+    try:
+        print(f"执行进程控制工具: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        result = await execute_computer_action("process", params)
+
+        if result.success:
+            response = {
+                "success": True,
+                "data": {
+                    "tool_name": tool_name,
+                    "result_data": result.data,
+                    "message": result.message,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        else:
+            response = {
+                "success": False,
+                "error": result.message
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/system_control")
+async def handle_system_control_tool(request: ToolRequest):
+    """处理系统控制工具请求"""
+    start_time = time.time()
+    tool_name = "system_control"
+    params = request.parameters
+
+    try:
+        print(f"执行系统控制工具: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        result = await execute_computer_action("system", params)
+
+        if result.success:
+            response = {
+                "success": True,
+                "data": {
+                    "tool_name": tool_name,
+                    "result_data": result.data,
+                    "message": result.message,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        else:
+            response = {
+                "success": False,
+                "error": result.message
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result.success)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/computer_stats")
+async def handle_computer_stats_tool(request: ToolRequest):
+    """获取电脑统计信息"""
+    start_time = time.time()
+    tool_name = "computer_stats"
+
+    try:
+        print(f"获取电脑统计信息: {tool_name}")
+
+        if not enhanced_controller_available:
+            return {
+                "success": False,
+                "error": "电脑控制模块未加载"
+            }
+
+        stats = get_computer_stats()
+
+        response = {
+            "success": True,
+            "data": {
+                "tool_name": tool_name,
+                "stats": stats,
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, True)
+        return response
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, {})
         return error_response
 
 @app.post("/mcp/automation")

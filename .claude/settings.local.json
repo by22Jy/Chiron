@@ -34,7 +34,13 @@
       "Bash(.venv/Scripts/pip.exe:*)",
       "Bash(.venv/Scripts/python.exe:*)",
       "Bash(git push:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm view:*)",
+      "Bash(npm search:*)",
+      "Bash(curl.exe:*)",
+      "Bash(set:*)",
+      "Bash(set WEATHER_API_KEY=:*)",
+      "Bash(cmd:*)"
     ],
     "deny": [],
     "ask": []

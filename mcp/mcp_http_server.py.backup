@@ -21,7 +21,8 @@ from pydantic import BaseModel
 import uvicorn
 
 # 导入已有的服务
-import requestsfrom newsapi import NewsApiClientfrom sib_api_v3_sdk import Configuration, ApiClient, TransactionalEmailsApi, SendSmtpEmailfrom agent.email_client import EmailClient, EmailConfig, EmailMessage
+from agent.real_news_weather import RealNewsService, RealWeatherService, NewsConfig, WeatherConfig
+from agent.email_client import EmailClient, EmailConfig, EmailMessage
 
 app = FastAPI(
     title="YOLO-LLM MCP HTTP Server",
@@ -39,7 +40,9 @@ app.add_middleware(
 )
 
 # 全局服务实例
-# 全局API客户端实例newsapi_client = Noneweather_api_key = Nonebrevo_config = Noneemail_client = None
+news_service = None
+weather_service = None
+email_client = None
 
 class ToolRequest(BaseModel):
     action: str = "execute"
@@ -53,7 +56,7 @@ class WorkflowRequest(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """启动时初始化服务"""
-    global newsapi_client, weather_api_key, brevo_config, email_client
+    global news_service, weather_service, email_client
 
     print("初始化MCP HTTP服务器...")
 

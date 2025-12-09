@@ -46,6 +46,14 @@ except ImportError:
     SocialMessage = None
     MassMessage = None
 
+# 导入DeepSeek LLM集成模块
+try:
+    from mcp.deepseek_integration import deepseek_integration, TaskType, MessageRole
+except ImportError:
+    deepseek_integration = None
+    TaskType = None
+    MessageRole = None
+
 # API Keys
 NEWS_API_KEY = os.getenv('NEWS_API_KEY')
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
@@ -87,7 +95,7 @@ async def health_check():
             "weather_api": "configured" if WEATHER_API_KEY else "not_configured",
             "smtp": "configured" if BREVO_API_KEY else "not_configured"
         },
-        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "automation", "voice_control", "system_health", "health_monitor", "social_media", "contact_management"],
+        "available_tools": ["news", "weather", "email", "filesystem", "computer_control", "automation", "voice_control", "system_health", "health_monitor", "social_media", "contact_management", "deepseek_llm", "task_management"],
         "cache_stats": mcp_cache.get_stats(),
         "error_summary": mcp_error_handler.get_error_summary()
     }
@@ -1033,6 +1041,391 @@ async def handle_contact_management_tool(request: ToolRequest):
                     "timestamp": datetime.now().isoformat()
                 }
             }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result["success"])
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/deepseek_llm")
+async def handle_deepseek_llm_tool(request: ToolRequest):
+    """处理DeepSeek LLM工具请求"""
+    start_time = time.time()
+    tool_name = "deepseek_llm"
+    params = request.parameters
+    action = params.get("action", "chat")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}")
+
+        if not deepseek_integration:
+            return {
+                "success": False,
+                "error": "DeepSeek LLM模块未加载"
+            }
+
+        if action == "start_worker":
+            # 启动工作线程
+            deepseek_integration.start_worker()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "worker_active": deepseek_integration.worker_active,
+                    "message": "DeepSeek工作线程已启动",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "stop_worker":
+            # 停止工作线程
+            deepseek_integration.stop_worker()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "worker_active": deepseek_integration.worker_active,
+                    "message": "DeepSeek工作线程已停止",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "chat":
+            # 直接对话
+            messages = params.get("messages", [])
+            if not messages:
+                result = {
+                    "success": False,
+                    "error": "缺少对话消息"
+                }
+            else:
+                # 转换消息格式
+                deepseek_messages = []
+                for msg in messages:
+                    role = MessageRole(msg.get("role", "user"))
+                    content = msg.get("content", "")
+                    deepseek_messages.append(
+                        deepseek_integration.Message(role=role, content=content)
+                    )
+
+                # 异步调用LLM
+                import asyncio
+                try:
+                    chat_result = await deepseek_integration.chat_with_llm(deepseek_messages)
+
+                    if chat_result["success"]:
+                        result = {
+                            "success": True,
+                            "data": {
+                                "action": action,
+                                "response": chat_result["content"],
+                                "function_call": chat_result.get("function_call"),
+                                "usage": chat_result.get("usage", {}),
+                                "timestamp": datetime.now().isoformat()
+                            }
+                        }
+                    else:
+                        result = {
+                            "success": False,
+                            "error": chat_result.get("error", "LLM对话失败")
+                        }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"LLM对话异常: {str(e)}"
+                    }
+
+        elif action == "create_task":
+            # 创建任务
+            task_type_name = params.get("task_type", "query")
+            description = params.get("description", "")
+            context = params.get("context", {})
+            priority = params.get("priority", 0)
+
+            task_type = TaskType(task_type_name)
+            task_id = deepseek_integration.create_task(task_type, description, context, priority)
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "task_id": task_id,
+                    "task_type": task_type_name,
+                    "description": description,
+                    "priority": priority,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "get_task_status":
+            # 获取任务状态
+            task_id = params.get("task_id")
+            if not task_id:
+                result = {
+                    "success": False,
+                    "error": "缺少任务ID"
+                }
+            else:
+                task_status = deepseek_integration.get_task_status(task_id)
+                if "error" in task_status:
+                    result = {
+                        "success": False,
+                        "error": task_status["error"]
+                    }
+                else:
+                    result = {
+                        "success": True,
+                        "data": {
+                            "action": action,
+                            **task_status,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                    }
+
+        elif action == "get_performance_stats":
+            # 获取性能统计
+            stats = deepseek_integration.get_performance_statistics()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    **stats,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "get_queue_status":
+            # 获取队列状态
+            queue_status = deepseek_integration.get_queue_status()
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    **queue_status,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "get_workflows":
+            # 获取可用工作流
+            workflows = []
+            for wf_id, workflow in deepseek_integration.workflows.items():
+                workflows.append({
+                    "id": workflow.id,
+                    "name": workflow.name,
+                    "description": workflow.description,
+                    "estimated_duration": workflow.estimated_duration,
+                    "required_tools": workflow.required_tools,
+                    "steps_count": len(workflow.steps)
+                })
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "workflows": workflows,
+                    "count": len(workflows),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        else:
+            result = {
+                "success": False,
+                "error": f"未知动作: {action}"
+            }
+
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, result["success"])
+        return result
+
+    except Exception as e:
+        duration = time.time() - start_time
+        mcp_monitor.record_request(tool_name, duration, False, str(e))
+        error_response = mcp_error_handler.handle_error(e, tool_name, params)
+        return error_response
+
+@app.post("/mcp/task_management")
+async def handle_task_management_tool(request: ToolRequest):
+    """处理任务管理工具请求"""
+    start_time = time.time()
+    tool_name = "task_management"
+    params = request.parameters
+    action = params.get("action", "list")
+
+    try:
+        print(f"执行增强版MCP工具: {tool_name}, 动作: {action}")
+
+        if not deepseek_integration:
+            return {
+                "success": False,
+                "error": "DeepSeek LLM模块未加载"
+            }
+
+        if action == "list_tasks":
+            # 列出任务
+            status_filter = params.get("status_filter")  # 可选状态筛选
+            task_type_filter = params.get("task_type_filter")  # 可选类型筛选
+            limit = params.get("limit", 20)
+
+            tasks = []
+            for task in deepseek_integration.tasks.values():
+                if status_filter and task.status.value != status_filter:
+                    continue
+                if task_type_filter and task.task_type.value != task_type_filter:
+                    continue
+
+                tasks.append({
+                    "task_id": task.id,
+                    "task_type": task.task_type.value,
+                    "description": task.description,
+                    "status": task.status.value,
+                    "priority": task.priority,
+                    "created_at": task.created_at.isoformat(),
+                    "started_at": task.started_at.isoformat() if task.started_at else None,
+                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                    "duration": task.actual_duration,
+                    "retry_count": task.retry_count,
+                    "error": task.error
+                })
+
+            # 按创建时间排序
+            tasks.sort(key=lambda x: x["created_at"], reverse=True)
+            tasks = tasks[:limit]
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "tasks": tasks,
+                    "count": len(tasks),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "create_batch_tasks":
+            # 批量创建任务
+            task_definitions = params.get("tasks", [])
+            created_tasks = []
+
+            for task_def in task_definitions:
+                try:
+                    task_type = TaskType(task_def.get("task_type", "query"))
+                    description = task_def.get("description", "")
+                    context = task_def.get("context", {})
+                    priority = task_def.get("priority", 0)
+
+                    task_id = deepseek_integration.create_task(task_type, description, context, priority)
+                    created_tasks.append({
+                        "task_id": task_id,
+                        "description": description,
+                        "task_type": task_type.value,
+                        "priority": priority
+                    })
+                except Exception as e:
+                    created_tasks.append({
+                        "error": str(e),
+                        "description": task_def.get("description", "未知任务")
+                    })
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "created_tasks": created_tasks,
+                    "total_requested": len(task_definitions),
+                    "total_created": sum(1 for t in created_tasks if "error" not in t),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "execute_workflow":
+            # 执行工作流
+            workflow_id = params.get("workflow_id")
+            workflow_params = params.get("parameters", {})
+
+            if not workflow_id or workflow_id not in deepseek_integration.workflows:
+                result = {
+                    "success": False,
+                    "error": f"工作流不存在: {workflow_id}"
+                }
+            else:
+                workflow = deepseek_integration.workflows[workflow_id]
+
+                # 创建工作流任务
+                task_id = deepseek_integration.create_task(
+                    TaskType.AUTOMATION,
+                    f"执行工作流: {workflow.name}",
+                    {
+                        "workflow_id": workflow_id,
+                        "parameters": workflow_params
+                    },
+                    priority=5
+                )
+
+                result = {
+                    "success": True,
+                    "data": {
+                        "action": action,
+                        "workflow_id": workflow_id,
+                        "workflow_name": workflow.name,
+                        "task_id": task_id,
+                        "estimated_duration": workflow.estimated_duration,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }
+
+        elif action == "get_task_history":
+            # 获取任务历史
+            limit = params.get("limit", 50)
+            history = deepseek_integration.task_history[-limit:] if deepseek_integration.task_history else []
+
+            result = {
+                "success": True,
+                "data": {
+                    "action": action,
+                    "history": history,
+                    "count": len(history),
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+
+        elif action == "cancel_task":
+            # 取消任务
+            task_id = params.get("task_id")
+            if not task_id:
+                result = {
+                    "success": False,
+                    "error": "缺少任务ID"
+                }
+            elif task_id not in deepseek_integration.tasks:
+                result = {
+                    "success": False,
+                    "error": f"任务不存在: {task_id}"
+                }
+            else:
+                task = deepseek_integration.tasks[task_id]
+                task.status = deepseek_integration.TaskStatus.CANCELLED
+                result = {
+                    "success": True,
+                    "data": {
+                        "action": action,
+                        "task_id": task_id,
+                        "message": "任务已取消",
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }
 
         else:
             result = {

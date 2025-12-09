@@ -40,7 +40,8 @@
       "Bash(curl.exe:*)",
       "Bash(set:*)",
       "Bash(set WEATHER_API_KEY=:*)",
-      "Bash(cmd:*)"
+      "Bash(cmd:*)",
+      "Bash(uvicorn:*)"
     ],
     "deny": [],
     "ask": []

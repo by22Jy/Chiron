@@ -7,7 +7,7 @@ import io, requests, base64
 import numpy as np
 from collections import deque
 import cv2
-from enhanced_gesture_detector import MediaPipeGestureDetector
+from simple_gesture_detector import MediaPipeGestureDetector
 
 app = FastAPI()
 app.add_middleware(

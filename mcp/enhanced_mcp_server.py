@@ -22,14 +22,17 @@ from mcp_utils import (
     retry_with_backoff, timeout_handler, mcp_cache, mcp_monitor, mcp_error_handler,
     MCPRetryException, MCPTimeoutException
 )
-# 导入通用电脑控制模块
+# 导入增强版电脑控制模块
+enhanced_controller = None
 try:
-    import sys
-    import os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from universal_computer_control import execute_computer_action, get_computer_stats
+    from enhanced_computer_control import EnhancedComputerController
+    enhanced_controller = EnhancedComputerController()
     enhanced_controller_available = True
-except ImportError:
+except ImportError as e:
+    print(f"无法导入增强版电脑控制模块: {e}")
+    enhanced_controller_available = False
+except Exception as e:
+    print(f"初始化增强版电脑控制模块失败: {e}")
     enhanced_controller_available = False
 
 # 导入健康监控模块
@@ -314,6 +317,10 @@ async def handle_filesystem_tool(request: ToolRequest):
 
     try:
         print(f"执行增强版MCP工具: {tool_name}, 参数: {params}")
+
+        # 验证路径参数
+        if not path.strip():
+            raise ValueError("文件路径不能为空")
 
         if operation == "write":
             with open(path, 'w', encoding='utf-8') as f:
@@ -718,7 +725,10 @@ async def handle_automation_tool(request: ToolRequest):
         # 如果是预设工作流
         if workflow_name == "steam_purchase" and params.get("game_name"):
             game_name = params["game_name"]
-            steps = enhanced_controller.create_steam_purchase_workflow(game_name)
+            if enhanced_controller and enhanced_controller_available:
+                steps = enhanced_controller.create_steam_purchase_workflow(game_name)
+            else:
+                steps = []
 
         # 转换步骤数据
         automation_steps = []
@@ -735,7 +745,16 @@ async def handle_automation_tool(request: ToolRequest):
             automation_steps.append(automation_step)
 
         # 执行工作流
-        workflow_result = enhanced_controller.execute_automation_workflow(workflow_name, automation_steps)
+        if enhanced_controller and enhanced_controller_available:
+            workflow_result = enhanced_controller.execute_automation_workflow(workflow_name, automation_steps)
+        else:
+            workflow_result = {
+                "success": False,
+                "message": "增强版电脑控制模块不可用",
+                "executed_steps": [],
+                "failed_step": None,
+                "duration": 0.0
+            }
 
         result = {
             "success": workflow_result["success"],
@@ -774,26 +793,42 @@ async def handle_voice_control_tool(request: ToolRequest):
 
         if action == "start":
             # 启动语音控制
-            voice_result = enhanced_controller.start_voice_control()
-            result = {
-                "success": voice_result["success"],
-                "data": {
-                    "action": action,
-                    "voice_enabled": enhanced_controller.voice_enabled,
-                    "available_commands": voice_result.get("available_commands", []),
-                    "message": voice_result.get("message", ""),
-                    "timestamp": datetime.now().isoformat()
+            if enhanced_controller and enhanced_controller_available:
+                voice_result = enhanced_controller.start_voice_control()
+                result = {
+                    "success": voice_result["success"],
+                    "data": {
+                        "action": action,
+                        "voice_enabled": enhanced_controller.voice_enabled,
+                        "available_commands": voice_result.get("available_commands", []),
+                        "message": voice_result.get("message", ""),
+                        "timestamp": datetime.now().isoformat()
+                    }
                 }
-            }
+            else:
+                result = {
+                    "success": False,
+                    "data": {
+                        "action": action,
+                        "voice_enabled": False,
+                        "available_commands": [],
+                        "message": "增强版电脑控制模块不可用",
+                        "timestamp": datetime.now().isoformat()
+                    }
+                }
 
         elif action == "stop":
             # 停止语音控制
-            enhanced_controller.stop_voice_control()
+            if enhanced_controller and enhanced_controller_available:
+                enhanced_controller.stop_voice_control()
+                voice_enabled = enhanced_controller.voice_enabled
+            else:
+                voice_enabled = False
             result = {
                 "success": True,
                 "data": {
                     "action": action,
-                    "voice_enabled": enhanced_controller.voice_enabled,
+                    "voice_enabled": voice_enabled,
                     "message": "语音控制已停止",
                     "timestamp": datetime.now().isoformat()
                 }
@@ -825,7 +860,14 @@ async def handle_system_health_tool(request: ToolRequest):
         print(f"执行增强版MCP工具: {tool_name}")
 
         # 获取系统健康信息
-        health_info = enhanced_controller.get_system_health_info()
+        if enhanced_controller and enhanced_controller_available:
+            health_info = enhanced_controller.get_system_health_info()
+        else:
+            health_info = {
+                "status": "unavailable",
+                "message": "增强版电脑控制模块不可用",
+                "components": {}
+            }
 
         result = {
             "success": True,

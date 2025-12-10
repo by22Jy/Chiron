@@ -10,6 +10,43 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# 初始化日志系统
+Write-Host "`n=== 初始化日志系统 ===" -ForegroundColor Cyan
+$logsDir = Join-Path $root "logs"
+if (-not (Test-Path $logsDir)) {
+    New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+}
+
+# 创建会话目录
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$sessionDir = Join-Path $logsDir "session_$timestamp"
+New-Item -ItemType Directory -Path $sessionDir -Force | Out-Null
+
+# 创建各模块日志目录
+$modules = @("backend", "ai_service", "mcp", "agent", "frontend")
+foreach ($module in $modules) {
+    $moduleDir = Join-Path $sessionDir $module
+    New-Item -ItemType Directory -Path $moduleDir -Force | Out-Null
+}
+
+Write-Host "[日志] 会话目录创建: $sessionDir" -ForegroundColor Green
+$global:logDir = $sessionDir
+
+# 创建会话信息文件
+$sessionInfo = @{
+    session_id = Split-Path $sessionDir -Leaf
+    start_time = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
+    platform = $PSVersionTable.Platform
+    modules = @{
+        backend = @{ status = "pending"; port = 8080 }
+        ai_service = @{ status = "pending"; port = 8000 }
+        mcp_server = @{ status = "pending"; port = 8083 }
+        agent = @{ status = "pending"; port = $null }
+        frontend = @{ status = "pending"; port = 5173 }
+    }
+}
+$sessionInfo | ConvertTo-Json -Depth 3 | Out-File -FilePath (Join-Path $sessionDir "session_info.json") -Encoding UTF8
+
 # 设置环境变量
 $env:DB_URL = "jdbc:mysql://127.0.0.1:3306/yolo_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC"
 $env:DB_USER = "root"
@@ -147,8 +184,11 @@ function Start-MCPServer {
     }
 
     Write-Host "[INFO] Starting Enhanced MCP Server..." -ForegroundColor Yellow
-    $cmd = "& `"$venvPython`" enhanced_mcp_server.py"
-    $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$mcpDir`"; $cmd")
+    Write-Host "[日志] MCP日志将保存到: $global:logDir\mcp\" -ForegroundColor Cyan
+
+    $mcpLogFile = Join-Path $global:logDir "mcp\mcp_server.log"
+    $cmd = "& `"$venvPython`" enhanced_mcp_server.py 2>&1 | Out-File -FilePath `"$mcpLogFile`" -Encoding UTF8 -Append"
+    $psArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$mcpDir`"; $cmd")
     Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized | Out-Null
     Write-Host "[SUCCESS] MCP Server starting: http://localhost:8083" -ForegroundColor Green
     Write-Host "  Including 9 computer control tools and news/weather/email features" -ForegroundColor Cyan
@@ -176,8 +216,11 @@ function Start-AIService {
     }
 
     Write-Host "[INFO] Starting AI FastAPI service..." -ForegroundColor Yellow
-    $cmd = "& `"$uvicornExe`" main:app --host 127.0.0.1 --port 8000 --reload"
-    $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$aiDir`"; $cmd")
+    Write-Host "[日志] AI服务日志将保存到: $global:logDir\ai_service\" -ForegroundColor Cyan
+
+    $aiLogFile = Join-Path $global:logDir "ai_service\fastapi.log"
+    $cmd = "& `"$uvicornExe`" main:app --host 127.0.0.1 --port 8000 --reload 2>&1 | Out-File -FilePath `"$aiLogFile`" -Encoding UTF8 -Append"
+    $psArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$aiDir`"; $cmd")
     Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized | Out-Null
     Write-Host "[SUCCESS] AI Service starting: http://127.0.0.1:8000" -ForegroundColor Green
     Start-Sleep -Seconds 5
@@ -224,7 +267,10 @@ function Start-Backend {
         Write-Host "[INFO] Using system Maven" -ForegroundColor Green
     }
 
-    $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$beDir`"; $cmd")
+    Write-Host "[日志] 后端日志将保存到: $global:logDir\backend\" -ForegroundColor Cyan
+
+    $backendLogFile = Join-Path $global:logDir "backend\spring-boot.log"
+    $psArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$beDir`"; $cmd 2>&1 | Out-File -FilePath `"$backendLogFile`" -Encoding UTF8 -Append")
     Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized | Out-Null
     Write-Host "[SUCCESS] Backend Service starting: http://127.0.0.1:8080" -ForegroundColor Green
     Start-Sleep -Seconds 8
@@ -237,13 +283,16 @@ function Start-Frontend {
         throw "Frontend directory not found: $feDir"
     }
 
+    Write-Host "[日志] 前端日志将保存到: $global:logDir\frontend\" -ForegroundColor Cyan
+
+    $frontendLogFile = Join-Path $global:logDir "frontend\frontend.log"
     if (-not (Test-Path (Join-Path $feDir 'node_modules'))) {
         Write-Host "[INFO] Installing frontend dependencies..." -ForegroundColor Blue
-        $cmd = "npm install; npm run dev"
+        $cmd = "npm install; npm run dev 2>&1 | Out-File -FilePath `"$frontendLogFile`" -Encoding UTF8 -Append"
         $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$feDir`"; $cmd")
         Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized | Out-Null
     } else {
-        $cmd = "npm run dev"
+        $cmd = "npm run dev 2>&1 | Out-File -FilePath `"$frontendLogFile`" -Encoding UTF8 -Append"
         $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$feDir`"; $cmd")
         Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized | Out-Null
     }
@@ -271,9 +320,13 @@ function Start-Agent {
         Write-Host "[OK] Agent virtual environment ready" -ForegroundColor Green
     }
 
+    Write-Host "[日志] Agent日志将保存到: $global:logDir\agent\" -ForegroundColor Cyan
+
+    $agentLogFile = Join-Path $global:logDir "agent\agent.log"
+
     # 分离启动：先摄像头，后语音
     Write-Host "[INFO] Step 1: Starting gesture recognition camera..." -ForegroundColor Yellow
-    $cameraCmd = "& `"$venvPython`" main.py --realtime"
+    $cameraCmd = "& `"$venvPython`" main.py --realtime 2>&1 | Out-File -FilePath `"$agentLogFile`" -Encoding UTF8 -Append"
     try {
         $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$agentDir`"; $cameraCmd")
         Start-Process powershell -ArgumentList $psArgs -WindowStyle Normal -ErrorAction Stop | Out-Null
@@ -294,7 +347,8 @@ function Start-Agent {
 
     # 启动语音控制
     Write-Host "[INFO] Step 2: Starting voice control..." -ForegroundColor Yellow
-    $voiceCmd = "& `"$venvPython`" main.py --voice"
+    $voiceLogFile = Join-Path $global:logDir "agent\voice.log"
+    $voiceCmd = "& `"$venvPython`" main.py --voice 2>&1 | Out-File -FilePath `"$voiceLogFile`" -Encoding UTF8 -Append"
     try {
         $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$agentDir`"; $voiceCmd")
         Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized -ErrorAction Stop | Out-Null
@@ -386,6 +440,14 @@ try {
     Write-Host "  • Camera window shows real-time gesture recognition" -ForegroundColor Gray
     Write-Host "  • Voice control supports Chinese commands" -ForegroundColor Gray
     Write-Host "  • Use .\stop-all.ps1 to stop all services" -ForegroundColor Gray
+    Write-Host ""
+
+    Write-Host ""
+    Write-Host "LOG MANAGEMENT:" -ForegroundColor Cyan
+    Write-Host "  All logs are automatically saved to: $global:logDir" -ForegroundColor White
+    Write-Host "  Quick view logs: view_logs.bat" -ForegroundColor Gray
+    Write-Host "  View errors: python log_reader.py -e" -ForegroundColor Gray
+    Write-Host "  Monitor logs: python log_reader.py --watch" -ForegroundColor Gray
     Write-Host ""
 
     Write-Host "YOLO-LLM system startup complete! Press any key to exit launcher..." -ForegroundColor Green

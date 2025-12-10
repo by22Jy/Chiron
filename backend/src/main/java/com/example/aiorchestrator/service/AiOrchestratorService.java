@@ -242,20 +242,48 @@ public class AiOrchestratorService {
      */
     private String buildAnalysisPrompt(String originalPrompt, List<String> requiredTools) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一个智能任务分析专家。请分析用户任务，确定如何调用指定的工具。\n\n");
-        sb.append("用户任务: ").append(originalPrompt).append("\n");
-        sb.append("可用工具: ").append(String.join(", ", requiredTools)).append("\n\n");
+        sb.append("你是一个智能任务编排专家，请分析用户的请求并使用提供的MCP工具来完成任务。\n\n");
+        sb.append("用户请求: ").append(originalPrompt).append("\n");
+        sb.append("需要使用的MCP工具: ").append(String.join(", ", requiredTools)).append("\n\n");
 
-        sb.append("请分析这个任务，为每个工具提供调用参数。返回JSON格式:\n");
+        sb.append("请根据用户请求，确定如何使用这些工具。返回JSON格式:\n");
         sb.append("{\n");
-        sb.append("  \"analysis\": \"任务分析结果\",\n");
+        sb.append("  \"analysis\": \"任务分析和执行计划\",\n");
         sb.append("  \"tools\": {\n");
 
         for (String tool : requiredTools) {
-            sb.append("    \"").append(tool).append("\": {\n");
-            sb.append("      \"action\": \"具体操作\",\n");
-            sb.append("      \"parameters\": {\"key\": \"value\"}\n");
-            sb.append("    },\n");
+            if ("news".equals(tool)) {
+                sb.append("    \"").append(tool).append("\": {\n");
+                sb.append("      \"action\": \"获取新闻资讯\",\n");
+                sb.append("      \"parameters\": {\n");
+                sb.append("        \"count\": \"获取的新闻数量\",\n");
+                sb.append("        \"category\": \"news\",\n");
+                sb.append("        \"language\": \"zh-CN\"\n");
+                sb.append("      }\n");
+                sb.append("    },\n");
+            } else if ("weather".equals(tool)) {
+                sb.append("    \"").append(tool).append("\": {\n");
+                sb.append("      \"action\": \"查询天气信息\",\n");
+                sb.append("      \"parameters\": {\n");
+                sb.append("        \"location\": \"查询的城市\",\n");
+                sb.append("        \"units\": \"metric\",\n");
+                sb.append("        \"language\": \"zh_cn\"\n");
+                sb.append("      }\n");
+                sb.append("    },\n");
+            } else if ("deepseek_llm".equals(tool)) {
+                sb.append("    \"").append(tool).append("\": {\n");
+                sb.append("      \"action\": \"整合和分析信息\",\n");
+                sb.append("      \"parameters\": {\n");
+                sb.append("        \"task\": \"整合各工具结果，生成用户友好的回复\",\n");
+                sb.append("        \"format\": \"结构化摘要\"\n");
+                sb.append("      }\n");
+                sb.append("    },\n");
+            } else {
+                sb.append("    \"").append(tool).append("\": {\n");
+                sb.append("      \"action\": \"执行相关操作\",\n");
+                sb.append("      \"parameters\": {}\n");
+                sb.append("    },\n");
+            }
         }
 
         sb.append("  }\n");
@@ -270,29 +298,79 @@ public class AiOrchestratorService {
     @SuppressWarnings("unchecked")
     private Map<String, Object> extractToolParameters(String analysisResult, String toolName) {
         try {
+            logger.info("解析工具参数，工具名: {}, 分析结果: {}", toolName, analysisResult);
+
             // 尝试解析JSON格式
             if (analysisResult.contains("{") && analysisResult.contains("}")) {
-                // 简单的JSON解析，实际项目中建议使用Jackson等JSON库
-                if (analysisResult.contains("\"" + toolName + "\"")) {
-                    // 提取对应工具的参数部分
-                    int toolIndex = analysisResult.indexOf("\"" + toolName + "\"");
-                    if (toolIndex != -1) {
-                        // 简化实现，返回基本参数
+                // 简单的JSON解析 - 查找工具开始位置
+                int toolStart = analysisResult.indexOf("\"" + toolName + "\"");
+                if (toolStart != -1) {
+                    // 查找参数对象开始
+                    int paramsStart = analysisResult.indexOf("{", toolStart);
+                    if (paramsStart != -1) {
+                        int braceCount = 0;
+                        int paramsEnd = paramsStart;
+
+                        // 找到匹配的结束括号
+                        for (int i = paramsStart; i < analysisResult.length(); i++) {
+                            if (analysisResult.charAt(i) == '{') {
+                                braceCount++;
+                            } else if (analysisResult.charAt(i) == '}') {
+                                braceCount--;
+                                if (braceCount == 0) {
+                                    paramsEnd = i + 1;
+                                    break;
+                                }
+                            }
+                        }
+
+                        String paramsJson = analysisResult.substring(paramsStart, paramsEnd);
+
+                        // 解析参数为Map
                         Map<String, Object> params = new HashMap<>();
-                        params.put("analysis", analysisResult);
-                        params.put("tool", toolName);
+
+                        // 简化的参数解析
+                        if ("news".equals(toolName)) {
+                            params.put("action", "get_news");
+                            params.put("count", 5);
+                            params.put("category", "general");
+                            params.put("language", "zh-CN");
+                        } else if ("weather".equals(toolName)) {
+                            params.put("action", "get_weather");
+                            // 尝试从分析结果中提取城市名
+                            if (analysisResult.toLowerCase().contains("北京")) {
+                                params.put("location", "Beijing");
+                            } else if (analysisResult.toLowerCase().contains("上海")) {
+                                params.put("location", "Shanghai");
+                            } else {
+                                params.put("location", "Beijing"); // 默认城市
+                            }
+                            params.put("units", "metric");
+                            params.put("language", "zh_cn");
+                        } else if ("deepseek_llm".equals(toolName)) {
+                            params.put("action", "analyze_and_integrate");
+                            params.put("task", "整合工具结果并生成用户友好的回复");
+                            params.put("format", "structured_summary");
+                        } else {
+                            params.put("action", "execute");
+                            params.put("analysis", analysisResult);
+                        }
+
+                        logger.info("解析出的工具参数: {}", params);
                         return params;
                     }
                 }
             }
         } catch (Exception e) {
-            logger.warn("解析工具参数失败，使用默认参数", e);
+            logger.warn("解析工具参数失败，使用默认参数: {}", e.getMessage(), e);
         }
 
         // 默认参数
         Map<String, Object> defaultParams = new HashMap<>();
         defaultParams.put("action", "execute");
-        defaultParams.put("context", analysisResult);
+        defaultParams.put("analysis", analysisResult);
+
+        logger.info("使用默认参数: {}", defaultParams);
         return defaultParams;
     }
 

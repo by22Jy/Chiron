@@ -75,25 +75,28 @@ public class LLMController {
         String context = (String) request.get("context");
 
         try {
-            // 构建语音命令分析提示词
-            String prompt = buildVoiceCommandPrompt(command, context);
+            logger.info("收到语音命令: {}, 上下文: {}", command, context);
 
-            // 调用LLM进行分析
-            String llmResponse = aiOrchestratorService.orchestrateByUrl("", prompt);
+            // 使用智能编排服务，包含MCP工具支持
+            List<String> requiredTools = List.of("news", "weather", "deepseek_llm", "task_management");
+            String response = aiOrchestratorService.orchestrateWithMCP(command, requiredTools);
 
             Map<String, Object> result = new HashMap<>();
             result.put("success", true);
-            result.put("response", llmResponse);
+            result.put("response", response);
             result.put("command", command);
             result.put("timestamp", System.currentTimeMillis());
+
+            logger.info("语音命令分析完成，响应: {}", response);
 
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
+            logger.error("语音命令分析失败", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", e.getMessage());
-            errorResponse.put("response", "语音命令分析暂时不可用");
+            errorResponse.put("response", "语音命令分析失败，请稍后重试");
 
             return ResponseEntity.status(500).body(errorResponse);
         }

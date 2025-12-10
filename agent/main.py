@@ -144,13 +144,13 @@ class GestureAgent:
                 }
                 self.safety_confirmation = SafetyConfirmationManager(safety_config)
 
-                logger.info('🤖 AI features initialized successfully')
-                logger.info('🎯 ContextManager initialized for visual context')
-                logger.info('🔀 GestureRouter initialized for fast/slow path routing')
-                logger.info('📊 VisualStatusReporter initialized for status reporting')
-                logger.info('🔊 TTS Engine initialized for voice feedback')
-                logger.info('👁️ Visual Feedback initialized for UI feedback')
-                logger.info('🛡️ Safety Confirmation Manager initialized for operation security')
+                logger.info('[AI] AI features initialized successfully')
+                logger.info('[AI] ContextManager initialized for visual context')
+                logger.info('[AI] GestureRouter initialized for fast/slow path routing')
+                logger.info('[AI] VisualStatusReporter initialized for status reporting')
+                logger.info('[AI] TTS Engine initialized for voice feedback')
+                logger.info('[AI] Visual Feedback initialized for UI feedback')
+                logger.info('[AI] Safety Confirmation Manager initialized for operation security')
             except Exception as e:
                 logger.warning(f'Failed to initialize AI features: {e}')
                 self.ai_features_available = False

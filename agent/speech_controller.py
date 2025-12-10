@@ -450,13 +450,13 @@ class VoiceController:
                 # 智能控制已经在解析阶段执行了，这里只需要记录结果
                 result = command.parameters.get('result', {})
                 action = result.get('action', {})
-                logger.info(f"✅ 智能控制执行成功: {action.get('description', '未知操作')}")
+                logger.info(f"[OK] 智能控制执行成功: {action.get('description', '未知操作')}")
 
                 # 可以在这里添加成功反馈，比如语音播报
                 if result.get('success'):
-                    logger.info(f"🎯 操作完成: {action.get('description', '')}")
+                    logger.info(f"[OK] 操作完成: {action.get('description', '')}")
                 else:
-                    logger.warning(f" 操作失败: {result.get('error', '未知错误')}")
+                    logger.warning(f"[ERROR] 操作失败: {result.get('error', '未知错误')}")
 
             elif command.command_type == "swipe":
                 self._execute_swipe(command.parameters)

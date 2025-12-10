@@ -113,7 +113,7 @@ Write-Host ""
 
 # 额外检查端口占用
 Write-Host "检查端口占用情况..." -ForegroundColor Yellow
-$ports = @(8000, 8080, 5173)
+$ports = @(8000, 8080, 5173, 8083)
 foreach ($port in $ports) {
     try {
         $connection = New-Object System.Net.Sockets.TcpClient

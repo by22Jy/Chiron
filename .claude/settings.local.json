@@ -65,7 +65,9 @@
       "Bash(\".\\.venv\\Scripts\\pip.exe\" uninstall mediapipe tensorflow protobuf -y)",
       "Bash(\".\\.venv\\Scripts\\pip.exe\" install protobuf==3.20.3 mediapipe==0.10.9 tensorflow==2.13.0)",
       "Bash(\".\\.venv\\Scripts\\pip.exe\" install pocketsphinx)",
-      "Bash(\".\\.venv\\Scripts\\python.exe\" enhanced_mcp_server.py)"
+      "Bash(\".\\.venv\\Scripts\\python.exe\" enhanced_mcp_server.py)",
+      "Bash(mvn clean compile:*)",
+      "Bash(.stop-services.bat)"
     ],
     "deny": [],
     "ask": []

@@ -228,7 +228,7 @@ class GestureAgent:
                 execute_with_confirmation()
             else:
                 # 需要确认，等待用户手势确认
-                logger.info(f'⚠️ 等待用户确认操作: {action_type} - {action_value}')
+                logger.info(f' 等待用户确认操作: {action_type} - {action_value}')
                 if self.tts_engine:
                     self.tts_engine.speak_async(f"请确认{action_type}操作")
                 if self.visual_feedback:
@@ -686,7 +686,7 @@ class GestureAgent:
 
             # 启动语音监听
             self.voice_controller.start_listening()
-            logger.info('🎤 Voice control started')
+            logger.info('[语音] Voice control started')
             return True
         except Exception as e:
             logger.error(f'Failed to start voice control: {e}')
@@ -715,7 +715,7 @@ class GestureAgent:
 
     def _on_voice_command(self, command: VoiceCommand):
         """处理语音命令"""
-        logger.info(f'🎤 Voice command: {command.command_type} - {command.parameters}')
+        logger.info(f'[语音] Voice command: {command.command_type} - {command.parameters}')
         self.send_event('voice_command', {
             'command_type': command.command_type,
             'parameters': command.parameters,
@@ -725,7 +725,7 @@ class GestureAgent:
 
     def _on_speech_text(self, text: str):
         """处理识别到的语音文本"""
-        logger.info(f'🎤 Speech recognized: {text}')
+        logger.info(f'[语音] Speech recognized: {text}')
 
         # 获取视觉上下文并发送给后端
         visual_context = self.get_visual_context_for_llm()

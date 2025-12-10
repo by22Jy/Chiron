@@ -336,7 +336,7 @@ class IntelligentController:
         """处理自然语言输入，返回操作结果"""
         start_time = time.time()
 
-        logger.info(f"🧠 开始智能分析用户请求: '{user_input}'")
+        logger.info(f"开始智能分析用户请求: '{user_input}'")
 
         # 构建提示词
         prompt = self._build_intelligent_prompt(user_input)
@@ -382,9 +382,9 @@ class IntelligentController:
         }
 
         if execution_success:
-            logger.info(f"✅ 智能控制成功: {action.description} (耗时: {processing_time:.2f}s)")
+            logger.info(f"[OK] 智能控制成功: {action.description} (耗时: {processing_time:.2f}s)")
         else:
-            logger.warning(f"❌ 智能控制失败: {action.description}")
+            logger.warning(f"[ERROR] 智能控制失败: {action.description}")
 
         return result
 

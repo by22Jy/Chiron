@@ -82,7 +82,7 @@ class VoiceController:
         if self.enable_intelligent_control:
             try:
                 self.intelligent_controller = IntelligentController(backend_url)
-                logger.info("🧠 智能电脑控制器已启用")
+                logger.info("智能电脑控制器已启用")
             except Exception as e:
                 logger.warning(f"启用智能控制器失败: {e}")
                 self.enable_intelligent_control = False
@@ -141,7 +141,7 @@ class VoiceController:
         self.processing_thread.daemon = True
         self.processing_thread.start()
 
-        logger.info("🎤 语音监听已启动")
+        logger.info("[语音] 语音监听已启动")
 
     def stop_listening(self):
         """停止语音监听"""
@@ -186,7 +186,7 @@ class VoiceController:
         try:
             # 使用Google语音识别（可以替换为其他引擎）
             text = self.recognizer.recognize_google(audio, language='zh-CN')
-            logger.info(f"🎤 识别到语音: {text}")
+            logger.info(f"[语音] 识别到语音: {text}")
 
             # 触发语音文本回调
             if self.on_speech_text:
@@ -289,7 +289,7 @@ class VoiceController:
         # 如果智能控制可用，所有语音都交给LLM处理
         if self.enable_intelligent_control and self.intelligent_controller:
             try:
-                logger.info(f"🧠 LLM处理语音: '{text}'")
+                logger.info(f"LLM处理语音: '{text}'")
 
                 # 调用智能控制器，让大模型理解并编排行为
                 result = self.intelligent_controller.process_natural_language(text)
@@ -332,7 +332,7 @@ class VoiceController:
                 )
 
         # 如果LLM不可用，才使用传统解析作为后备
-        logger.warning("⚠️ LLM不可用，使用传统关键词匹配")
+        logger.warning("LLM不可用，使用传统关键词匹配")
         return self._fallback_parse(text)
 
     def _fallback_parse(self, text: str) -> Optional[VoiceCommand]:
@@ -456,7 +456,7 @@ class VoiceController:
                 if result.get('success'):
                     logger.info(f"🎯 操作完成: {action.get('description', '')}")
                 else:
-                    logger.warning(f"⚠️ 操作失败: {result.get('error', '未知错误')}")
+                    logger.warning(f" 操作失败: {result.get('error', '未知错误')}")
 
             elif command.command_type == "swipe":
                 self._execute_swipe(command.parameters)

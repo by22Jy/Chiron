@@ -140,7 +140,47 @@ class IntelligentController:
 """
 
     def _call_llm_for_analysis(self, prompt: str) -> Optional[str]:
-        """调用LLM进行分析"""
+        """调用LLM进行智能编排分析（支持MCP工具）"""
+        try:
+            # 首先尝试使用智能编排API（支持MCP工具）
+            response = requests.post(
+                f"{self.backend_url}/api/llm/intelligent",
+                json={
+                    "message": prompt,
+                    "context": "智能语音控制，支持MCP工具调用"
+                },
+                timeout=30  # 给MCP工具调用更多时间
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    response_text = result.get('response', '')
+
+                    # 记录MCP工具使用情况
+                    if 'tools_used' in result:
+                        logger.info(f"MCP工具可用: {result['tools_used']}")
+
+                    if 'mcp_status' in result:
+                        logger.info(f"MCP状态: {result['mcp_status']}")
+
+                    if result.get('fallback_used'):
+                        logger.warning("使用了回退模式，MCP工具可能不可用")
+
+                    return response_text
+                else:
+                    logger.warning(f"智能编排失败: {result.get('error')}")
+                    if result.get('fallback_used') and result.get('fallback_response'):
+                        logger.info("使用回退响应")
+                        return result['fallback_response']
+            else:
+                logger.warning(f"智能编排API响应错误: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"调用智能编排API失败: {e}")
+            logger.info("尝试回退到普通LLM调用")
+
+        # 回退到普通LLM调用
         try:
             response = requests.post(
                 f"{self.backend_url}/api/llm/chat",
@@ -156,10 +196,10 @@ class IntelligentController:
                 if result.get('success'):
                     return result.get('response', '')
             else:
-                logger.warning(f"LLM服务响应错误: {response.status_code}")
+                logger.warning(f"回退LLM服务响应错误: {response.status_code}")
 
         except Exception as e:
-            logger.error(f"调用LLM服务失败: {e}")
+            logger.error(f"回退LLM调用也失败: {e}")
 
         return None
 

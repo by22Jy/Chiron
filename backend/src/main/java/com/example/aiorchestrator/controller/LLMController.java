@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -140,6 +141,102 @@ public class LLMController {
             logger.info("错误响应: {}", errorResponse);
             return ResponseEntity.status(500).body(errorResponse);
         }
+    }
+
+    /**
+     * 智能编排接口 - 支持MCP工具调用
+     */
+    @PostMapping("/intelligent")
+    public ResponseEntity<Map<String, Object>> intelligentOrchestrate(
+            @RequestBody Map<String, Object> request) {
+
+        logger.info("收到智能编排请求: {}", request);
+
+        String message = (String) request.get("message");
+        String context = (String) request.get("context");
+
+        try {
+            // 获取可用的MCP工具
+            Map<String, Object> mcpStatus = aiOrchestratorService.getMCPStatus();
+            List<String> availableTools = (List<String>) mcpStatus.get("available_tools");
+
+            logger.info("可用MCP工具: {}", availableTools);
+
+            // 构建智能编排提示词，包含MCP工具信息
+            String intelligentPrompt = buildIntelligentPrompt(message, context, availableTools);
+            logger.info("智能编排提示词: {}", intelligentPrompt);
+
+            // 调用带MCP工具的LLM编排
+            String llmResponse = aiOrchestratorService.orchestrateWithMCP(intelligentPrompt, availableTools);
+            logger.info("智能编排响应: {}", llmResponse);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("response", llmResponse);
+            result.put("tools_used", availableTools);
+            result.put("mcp_status", mcpStatus);
+            result.put("timestamp", System.currentTimeMillis());
+
+            logger.info("智能编排成功: {}", result);
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            logger.error("智能编排失败", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", e.getMessage());
+            errorResponse.put("response", "智能编排暂时不可用");
+            errorResponse.put("fallback_used", true);
+
+            // 回退到普通LLM调用
+            try {
+                String fallbackPrompt = buildChatPrompt(message, context, "");
+                String fallbackResponse = aiOrchestratorService.orchestrateByUrl("", fallbackPrompt);
+                errorResponse.put("fallback_response", fallbackResponse);
+            } catch (Exception fallbackEx) {
+                logger.error("回退调用也失败", fallbackEx);
+                errorResponse.put("fallback_response", "所有LLM服务不可用");
+            }
+
+            logger.info("智能编排错误响应: {}", errorResponse);
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * 构建智能编排提示词
+     */
+    private String buildIntelligentPrompt(String message, String context, List<String> availableTools) {
+        StringBuilder prompt = new StringBuilder();
+
+        prompt.append("你是一个专业的AI智能助手，能够理解用户意图并使用各种工具来完成任务。\n\n");
+
+        prompt.append("用户请求: ").append(message).append("\n");
+        if (context != null && !context.isEmpty()) {
+            prompt.append("上下文: ").append(context).append("\n");
+        }
+
+        prompt.append("\n可用工具:\n");
+        for (String tool : availableTools) {
+            prompt.append("- ").append(tool).append("\n");
+        }
+
+        prompt.append("\n工具说明:\n");
+        prompt.append("- news: 获取最新新闻资讯\n");
+        prompt.append("- weather: 查询天气信息\n");
+        prompt.append("- email: 发送邮件\n");
+        prompt.append("- computer_control: 控制电脑操作\n");
+        prompt.append("- filesystem: 文件系统操作\n");
+        prompt.append("- system_health: 系统健康检查\n");
+        prompt.append("- voice_control: 语音控制\n");
+        prompt.append("- social_media: 社交媒体操作\n");
+        prompt.append("- deepseek_llm: 深度思考和推理\n");
+
+        prompt.append("\n请分析用户的请求，如果需要使用工具，请明确说明使用哪个工具以及具体参数。");
+        prompt.append("如果不需要工具，请直接回答用户问题。");
+        prompt.append("请用中文回答，内容要详细、有用、有条理。");
+
+        return prompt.toString();
     }
 
     /**

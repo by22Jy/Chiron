@@ -37,7 +37,7 @@ ai:
 # MCP服务器配置
 mcp:
   server:
-    url: ${MCP_SERVER_URL:http://localhost:8081}
+    url: ${MCP_SERVER_URL:http://localhost:8083}
     timeout: 30000
 
 

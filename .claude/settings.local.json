@@ -63,7 +63,9 @@
       "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\ntry:\n    import mediapipe as mp\n    from google.protobuf import runtime_version\n    print(''MediaPipe version:'', mp.__version__)\n    print(''protobuf runtime_version available: SUCCESS'')\n    print(''MediaPipe import test: PASSED'')\nexcept ImportError as e:\n    print(''MediaPipe import failed:'', e)\nexcept Exception as e:\n    print(''Other error:'', e)\n\")",
       "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\ntry:\n    import mediapipe as mp\n    print(''MediaPipe version:'', mp.__version__)\n    print(''MediaPipe import test: PASSED'')\nexcept ImportError as e:\n    print(''MediaPipe import failed:'', e)\nexcept Exception as e:\n    print(''Other error:'', e)\n\")",
       "Bash(\".\\.venv\\Scripts\\pip.exe\" uninstall mediapipe tensorflow protobuf -y)",
-      "Bash(\".\\.venv\\Scripts\\pip.exe\" install protobuf==3.20.3 mediapipe==0.10.9 tensorflow==2.13.0)"
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install protobuf==3.20.3 mediapipe==0.10.9 tensorflow==2.13.0)",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install pocketsphinx)",
+      "Bash(\".\\.venv\\Scripts\\python.exe\" enhanced_mcp_server.py)"
     ],
     "deny": [],
     "ask": []

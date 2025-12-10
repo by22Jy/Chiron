@@ -57,7 +57,13 @@
       "Bash(\".\\.venv\\Scripts\\pip.exe\" uninstall mediapipe -y)",
       "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"from simple_gesture_detector import MediaPipeGestureDetector; detector = MediaPipeGestureDetector(); print(''手势检测器测试成功'')\")",
       "Bash(\".\\.venv\\Scripts\\python.exe\" -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload)",
-      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\nfrom PIL import Image\nimport numpy as np\n\n# 创建一个简单的测试图片\nimg_array = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)\nimg = Image.fromarray(img_array, ''RGB'')\nimg.save(''test_image.jpg'')\nprint(''测试图片已创建: test_image.jpg'')\n\")"
+      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\nfrom PIL import Image\nimport numpy as np\n\n# 创建一个简单的测试图片\nimg_array = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)\nimg = Image.fromarray(img_array, ''RGB'')\nimg.save(''test_image.jpg'')\nprint(''测试图片已创建: test_image.jpg'')\n\")",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install protobuf==3.20.3 --force-reinstall)",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install mediapipe==0.10.14)",
+      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\ntry:\n    import mediapipe as mp\n    from google.protobuf import runtime_version\n    print(''MediaPipe version:'', mp.__version__)\n    print(''protobuf runtime_version available: SUCCESS'')\n    print(''MediaPipe import test: PASSED'')\nexcept ImportError as e:\n    print(''MediaPipe import failed:'', e)\nexcept Exception as e:\n    print(''Other error:'', e)\n\")",
+      "Bash(\".\\.venv\\Scripts\\python.exe\" -c \"\ntry:\n    import mediapipe as mp\n    print(''MediaPipe version:'', mp.__version__)\n    print(''MediaPipe import test: PASSED'')\nexcept ImportError as e:\n    print(''MediaPipe import failed:'', e)\nexcept Exception as e:\n    print(''Other error:'', e)\n\")",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" uninstall mediapipe tensorflow protobuf -y)",
+      "Bash(\".\\.venv\\Scripts\\pip.exe\" install protobuf==3.20.3 mediapipe==0.10.9 tensorflow==2.13.0)"
     ],
     "deny": [],
     "ask": []

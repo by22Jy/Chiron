@@ -70,6 +70,11 @@ class VoiceController:
         self.listening_thread = None
         self.processing_thread = None
 
+        # 语音上下文累积
+        self.speech_context = []  # 存储最近的语音片段
+        self.context_timeout = 15.0  # 上下文超时时间（秒）
+        self.last_speech_time = 0.0
+
         # 智能电脑控制器
         self.enable_intelligent_control = enable_intelligent_control and INTELLIGENT_CONTROL_AVAILABLE
         self.intelligent_controller = None
@@ -187,10 +192,9 @@ class VoiceController:
             if self.on_speech_text:
                 self.on_speech_text(text)
 
-            # 解析命令
-            command = self._parse_command(text)
-            if command:
-                self.command_queue.put(command)
+            # 添加到上下文并处理
+            self._add_to_context(text)
+            self._process_speech_with_context()
 
         except sr.UnknownValueError:
             logger.debug("无法识别语音")
@@ -198,6 +202,67 @@ class VoiceController:
             logger.error(f"语音识别服务错误: {e}")
         except Exception as e:
             logger.error(f"语音识别异常: {e}")
+
+    def _add_to_context(self, text: str):
+        """添加语音片段到上下文"""
+        current_time = time.time()
+
+        # 清理超时的上下文
+        if current_time - self.last_speech_time > self.context_timeout:
+            self.speech_context.clear()
+            logger.debug("上下文超时，重新开始")
+
+        self.speech_context.append({
+            'text': text,
+            'timestamp': current_time
+        })
+        self.last_speech_time = current_time
+
+        logger.debug(f"上下文片段: '{text}' (总计: {len(self.speech_context)} 片段)")
+
+    def _process_speech_with_context(self):
+        """处理带上下文的语音"""
+        # 组合上下文中的所有片段
+        full_context = " ".join([item['text'] for item in self.speech_context])
+
+        # 检查是否完整句子（根据标点符号或语义完整性）
+        if self._is_complete_sentence(full_context):
+            logger.info(f"🎯 完整句子识别: '{full_context}'")
+
+            # 解析命令
+            command = self._parse_command(full_context)
+            if command:
+                self.command_queue.put(command)
+
+            # 清空上下文，准备下一轮
+            self.speech_context.clear()
+        else:
+            logger.debug("句子不完整，等待更多语音片段...")
+
+    def _is_complete_sentence(self, text: str) -> bool:
+        """判断是否为完整句子"""
+        # 检查标点符号
+        end_punctuations = ["。", "！", "？", "！", "~", "吧", "吗", "呢"]
+        if any(text.endswith(punct) for punct in end_punctuations):
+            return True
+
+        # 检查命令完整性标志词
+        complete_keywords = [
+            "帮我", "请", "能否", "可以吗", "我想", "我要",
+            "打开", "启动", "关闭", "搜索", "查询", "找到",
+            "发邮件", "发送", "记录", "写下", "保存",
+            "播放", "暂停", "停止", "下一个", "上一个"
+        ]
+
+        text_lower = text.lower()
+        if any(keyword in text_lower for keyword in complete_keywords):
+            return True
+
+        # 检查长度阈值（避免无限等待）
+        if len(text) > 50:
+            return True
+
+        return False
 
     def _processing_loop(self):
         """命令处理循环"""
@@ -219,42 +284,62 @@ class VoiceController:
                 logger.error(f"命令处理错误: {e}")
 
     def _parse_command(self, text: str) -> Optional[VoiceCommand]:
-        """解析语音命令"""
-        text_lower = text.lower().strip()
+        """解析语音命令 - 使用LLM智能处理所有语音"""
 
-        # 优先使用智能电脑控制
+        # 如果智能控制可用，所有语音都交给LLM处理
         if self.enable_intelligent_control and self.intelligent_controller:
             try:
-                # 对于复杂的自然语言请求，使用LLM智能分析
-                complex_keywords = ["帮我", "请", "能不能", "可不可以", "我想", "我要", "搜索", "查找", "启动", "运行", "打开", "关闭", "调节", "设置", "配置"]
+                logger.info(f"🧠 LLM处理语音: '{text}'")
 
-                if any(keyword in text_lower for keyword in complex_keywords):
-                    logger.info(f"🧠 使用智能控制处理复杂命令: '{text}'")
+                # 调用智能控制器，让大模型理解并编排行为
+                result = self.intelligent_controller.process_natural_language(text)
 
-                    # 调用智能控制器
-                    result = self.intelligent_controller.process_natural_language(text)
-
-                    if result.get('success'):
-                        action = result.get('action', {})
-                        return VoiceCommand(
-                            command_type="intelligent_control",
-                            parameters={
-                                "action": action,
-                                "result": result
-                            },
-                            confidence=action.get('confidence', 0.8),
-                            raw_text=text
-                        )
-                    else:
-                        logger.warning(f"智能控制失败: {result.get('error', '未知错误')}")
-                        # 继续使用传统解析
+                if result.get('success'):
+                    action = result.get('action', {})
+                    return VoiceCommand(
+                        command_type="intelligent_control",
+                        parameters={
+                            "action": action,
+                            "result": result
+                        },
+                        confidence=action.get('confidence', 0.8),
+                        raw_text=text
+                    )
+                else:
+                    logger.warning(f"LLM无法处理此请求: {result.get('error', '未知错误')}")
+                    # 即使失败也记录，让用户知道LLM尝试了
+                    return VoiceCommand(
+                        command_type="llm_failed",
+                        parameters={
+                            "error": result.get('error', '未知错误'),
+                            "raw_text": text
+                        },
+                        confidence=0.0,
+                        raw_text=text
+                    )
 
             except Exception as e:
-                logger.error(f"智能控制处理失败: {e}")
-                # 继续使用传统解析
+                logger.error(f"LLM处理失败: {e}")
+                # 返回失败信息而不是尝试传统解析
+                return VoiceCommand(
+                    command_type="llm_error",
+                    parameters={
+                        "error": str(e),
+                        "raw_text": text
+                    },
+                    confidence=0.0,
+                    raw_text=text
+                )
 
-        # 传统命令解析（向后兼容）
-        # 滑动命令
+        # 如果LLM不可用，才使用传统解析作为后备
+        logger.warning("⚠️ LLM不可用，使用传统关键词匹配")
+        return self._fallback_parse(text)
+
+    def _fallback_parse(self, text: str) -> Optional[VoiceCommand]:
+        """传统的关键词匹配解析（仅作为后备方案）"""
+        text_lower = text.lower().strip()
+
+        # 简单的手势命令
         if any(keyword in text_lower for keyword in ["左滑", "向左滑", "往左滑"]):
             return VoiceCommand(
                 command_type="swipe",

@@ -107,7 +107,7 @@ class IntelligentController:
     def _build_intelligent_prompt(self, user_input: str) -> str:
         """构建智能分析提示词"""
         return f"""
-你是一个专业的电脑控制助手。请分析用户的自然语言请求，并将其转换为具体的电脑操作命令。
+你是一个专业的AI智能电脑助手，能够理解复杂的自然语言请求并进行智能行为编排。
 
 系统信息: {json.dumps(self.system_info, ensure_ascii=False, indent=2)}
 
@@ -115,25 +115,28 @@ class IntelligentController:
 
 用户请求: "{user_input}"
 
-请分析这个请求并返回一个JSON对象，包含以下字段：
+请仔细分析用户的完整意图，这可能包含多个步骤的复杂操作。理解上下文，支持邮件、天气查询、多步骤任务等。
+
+返回JSON对象：
 {{
-  "action_type": "open_app" | "system_control" | "file_operation" | "web_search" | "custom_command" | "unknown",
-  "command": "具体要执行的命令或程序路径",
-  "description": "对操作的详细描述",
+  "action_type": "open_app" | "system_control" | "file_operation" | "web_search" | "email_operation" | "weather_query" | "multi_step_task" | "custom_command" | "unknown",
+  "command": "具体要执行的命令或操作描述",
+  "description": "对用户意图的详细理解",
   "confidence": 0.0-1.0之间的置信度,
   "safety_level": "safe" | "warning" | "dangerous",
-  "alternatives": ["如果无法直接执行，提供替代方案"],
-  "explanation": "解释为什么选择这个操作"
+  "alternatives": ["智能替代方案"],
+  "explanation": "详细解释理解的用户意图和执行计划",
+  "context_understanding": "对用户完整请求的理解，包括连续语句的上下文"
 }}
 
-注意事项：
-1. 优先使用已安装的应用程序
-2. 对于未知应用，尝试智能匹配
-3. 系统控制命令要安全可靠
-4. 对于危险操作，标记为"dangerous"
-5. 提供清晰的执行说明
+能力说明：
+- 邮件操作：理解"发邮件"、"发送给邮箱"、"邮件发送"等
+- 天气查询：理解"天气"、"查询天气"、"今天天气"等
+- 多步骤任务：理解"打开记事本并记录天气"、"查询天气然后发送邮件"等
+- 上下文理解：结合前后语音片段理解完整意图
+- 应用程序：智能匹配常用软件
 
-请只返回JSON，不要包含其他文字。
+请只返回JSON，确保理解用户的完整意图。
 """
 
     def _call_llm_for_analysis(self, prompt: str) -> Optional[str]:

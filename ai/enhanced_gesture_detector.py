@@ -9,7 +9,7 @@ from collections import deque
 # Try to import mediapipe, but handle import errors gracefully
 try:
     import mediapipe as mp
-    from google.protobuf import runtime_version
+    # Skip the problematic runtime_version import
     MEDIAPIPE_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: MediaPipe not available - {e}")

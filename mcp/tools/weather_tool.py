@@ -8,6 +8,7 @@ import asyncio
 import requests
 import json
 import time
+import re
 from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, timedelta
@@ -424,24 +425,108 @@ class WeatherTool:
         return forecast
 
     async def _perform_weather_analysis(self, weather_data: Dict[str, Any], city: str) -> Dict[str, Any]:
-        """执行天气分析"""
+        """使用DeepSeek执行智能天气分析"""
+
+        # 构建天气信息提示
+        weather_prompt = f"""
+请分析以下{city}的天气数据，并提供专业的天气分析：
+
+天气数据：
+- 温度: {weather_data.get('temperature', '')}
+- 天气状况: {weather_data.get('condition', '')}
+- 湿度: {weather_data.get('humidity', '')}
+- 风速: {weather_data.get('wind_speed', '')}
+- 体感温度: {weather_data.get('feels_like', '')}
+
+请提供以下格式的JSON分析结果：
+{{
+  "overall_rating": "天气整体评价（舒适/凉爽/寒冷/炎热等）",
+  "comfort_score": 数字评分（0-100），
+  "activity_suitability": ["适合的活动类型1", "适合的活动类型2"],
+  "clothing_suggestions": ["建议的衣物1", "建议的衣物2", "建议的衣物3"],
+  "health_advice": ["健康建议1", "健康建议2"],
+  "special_notes": ["特殊提醒1", "特殊提醒2"],
+  "detailed_analysis": "详细的天气分析和建议说明"
+}}
+
+请基于实际天气数据进行智能分析，考虑人体舒适度、活动适宜性等因素。
+"""
+
+        try:
+            # 导入DeepSeek集成
+            from deepseek_integration import deepseek_integration
+
+            if not deepseek_integration:
+                # 如果DeepSeek不可用，使用基本分析作为后备
+                return await self._fallback_weather_analysis(weather_data, city)
+
+            # 使用DeepSeek进行天气分析
+            messages = [
+                {"role": "system", "content": "你是一个专业的天气分析师，能够基于天气数据提供智能的生活建议。"},
+                {"role": "user", "content": weather_prompt}
+            ]
+
+            result = await deepseek_integration.chat_with_llm(messages)
+
+            if result.get("success"):
+                analysis_text = result.get("response", "")
+
+                # 尝试解析JSON
+                try:
+                    # 提取JSON部分
+                    json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+                    if json_match:
+                        analysis_data = json.loads(json_match.group(0))
+                        return analysis_data
+                    else:
+                        # 如果无法解析JSON，返回基本分析
+                        return {
+                            "overall_rating": "分析完成",
+                            "comfort_score": 75,
+                            "activity_suitability": ["室内外活动"],
+                            "clothing_suggestions": ["适合当前天气的衣物"],
+                            "health_advice": ["注意天气变化"],
+                            "special_notes": ["基于AI分析"],
+                            "detailed_analysis": analysis_text
+                        }
+                except json.JSONDecodeError:
+                    return {
+                        "overall_rating": "分析完成",
+                        "comfort_score": 75,
+                        "activity_suitability": ["室内外活动"],
+                        "clothing_suggestions": ["适合当前天气的衣物"],
+                        "health_advice": ["注意天气变化"],
+                        "special_notes": ["基于AI分析"],
+                        "detailed_analysis": analysis_text
+                    }
+            else:
+                # DeepSeek调用失败，使用基本分析
+                return await self._fallback_weather_analysis(weather_data, city)
+
+        except Exception as e:
+            logger.error(f"DeepSeek天气分析失败: {str(e)}")
+            # 出错时使用基本分析作为后备
+            return await self._fallback_weather_analysis(weather_data, city)
+
+    async def _fallback_weather_analysis(self, weather_data: Dict[str, Any], city: str) -> Dict[str, Any]:
+        """基本的天气分析（作为DeepSeek的后备方案）"""
 
         temperature = weather_data.get("temperature", "")
         condition = weather_data.get("condition", "")
         humidity = weather_data.get("humidity", "")
 
-        # 智能分析
         analysis = {
             "overall_rating": "舒适",
             "comfort_score": 85,
             "activity_suitability": [],
             "clothing_suggestions": [],
             "health_advice": [],
-            "special_notes": []
+            "special_notes": [],
+            "detailed_analysis": f"{city}使用基本规则分析"
         }
 
-        # 温度分析
-        temp_num = 18  # 默认温度
+        # 温度分析（原有逻辑）
+        temp_num = 18
         try:
             temp_num = int(temperature.replace("°C", "").replace("°F", ""))
         except:

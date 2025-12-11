@@ -119,7 +119,7 @@ foreach ($port in $ports) {
         $connection = New-Object System.Net.Sockets.TcpClient
         $connection.Connect("127.0.0.1", $port)
         if ($connection.Connected) {
-            Write-Host "⚠️  端口 $port 仍被占用" -ForegroundColor Yellow
+            Write-Host "  端口 $port 仍被占用" -ForegroundColor Yellow
         }
         $connection.Close()
     } catch {

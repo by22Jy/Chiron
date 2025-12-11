@@ -1,8 +1,17 @@
 @echo off
 chcp 65001 >nul
 echo ===================================
-echo    YOLO-LLM Project Startup Script (Windows) - Updated
+echo  YOLO-LLM Project Startup Script (Windows) - With Logging
 echo ===================================
+
+REM Initialize Logging System
+echo Initializing Logging System...
+cd /d "%~dp0"
+if not exist "logs" mkdir logs
+python -c "import sys, os, datetime; from pathlib import Path; logs_dir = Path('logs'); logs_dir.mkdir(exist_ok=True); timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S'); session_dir = logs_dir / f'session_{timestamp}'; session_dir.mkdir(exist_ok=True); [ (session_dir / m).mkdir(exist_ok=True) for m in ['backend', 'ai_service', 'mcp', 'agent', 'frontend'] ]; print(session_dir)" > temp_session_dir.txt
+set /p LOG_DIR=<temp_session_dir.txt
+del temp_session_dir.txt
+echo [LOG] Session created: %LOG_DIR%
 
 REM Set environment variables - modify according to your actual situation
 set DB_URL=jdbc:mysql://127.0.0.1:3306/yolo_platform?useUnicode=true^&characterEncoding=utf8^&serverTimezone=UTC
@@ -57,13 +66,21 @@ if not exist ".venv" (
 )
 call .venv\Scripts\activate.bat
 pip install -r requirements.txt -q
-start "YOLO-LLM Enhanced MCP Server" cmd /c ".venv\Scripts\activate.bat && set NEWS_API_KEY=%NEWS_API_KEY% && set WEATHER_API_KEY=%WEATHER_API_KEY% && set BREVO_API_KEY=%BREVO_API_KEY% && python enhanced_mcp_server.py"
+
+echo [LOG] MCP logs will be saved to: %LOG_DIR%\mcp\
+
+REM Start MCP Server with logging
+start "YOLO-LLM Enhanced MCP Server" cmd /c ".venv\Scripts\activate.bat && set NEWS_API_KEY=%NEWS_API_KEY% && set WEATHER_API_KEY=%WEATHER_API_KEY% && set BREVO_API_KEY=%BREVO_API_KEY% && python enhanced_mcp_server.py > \"%LOG_DIR%\mcp\mcp_server.log\" 2>&1"
 timeout /t 8 /nobreak
 
 echo.
 echo Starting Backend Service (Port: 8080)...
 cd /d "%~dp0backend"
-start "YOLO-LLM Backend" cmd /c "set KIMI_API_KEY=%KIMI_API_KEY% && set QWEN_API_KEY=%QWEN_API_KEY% && set MCP_SERVER_URL=http://localhost:8083 && mvn spring-boot:run"
+
+echo [LOG] Backend logs will be saved to: %LOG_DIR%\backend\
+
+REM Start Backend with logging
+start "YOLO-LLM Backend" cmd /c "set KIMI_API_KEY=%KIMI_API_KEY% && set QWEN_API_KEY=%QWEN_API_KEY% && set MCP_SERVER_URL=http://localhost:8083 && mvn spring-boot:run > \"%LOG_DIR%\backend\spring-boot.log\" 2>&1"
 timeout /t 12 /nobreak
 
 echo.
@@ -75,7 +92,11 @@ if not exist ".venv" (
 )
 call .venv\Scripts\activate.bat
 pip install -r requirements.txt -q
-start "YOLO-LLM AI Service" cmd /c ".venv\Scripts\activate.bat && uvicorn main:app --reload --host 127.0.0.1 --port 8000"
+
+echo [LOG] AI Service logs will be saved to: %LOG_DIR%\ai_service\
+
+REM Start AI Service with logging
+start "YOLO-LLM AI Service" cmd /c ".venv\Scripts\activate.bat && uvicorn main:app --reload --host 127.0.0.1 --port 8000 > \"%LOG_DIR%\ai_service\fastapi.log\" 2>&1"
 timeout /t 8 /nobreak
 
 echo.
@@ -85,7 +106,11 @@ if not exist "node_modules" (
     echo Installing frontend dependencies...
     npm install
 )
-start "YOLO-LLM Frontend" cmd /c "npm run dev"
+
+echo [LOG] Frontend logs will be saved to: %LOG_DIR%\frontend\
+
+REM Start Frontend with logging
+start "YOLO-LLM Frontend" cmd /c "npm run dev > \"%LOG_DIR%\frontend\frontend.log\" 2>&1"
 timeout /t 8 /nobreak
 
 echo.
@@ -140,7 +165,16 @@ if /i "%choice%"=="y" (
     echo.
     echo Starting Voice Control Agent...
     cd /d "%~dp0agent"
-    start "YOLO-LLM Voice Agent" cmd /c "python voice_simple_final.py"
+
+    REM Get log directory
+    for /f "delims=" %%i in ('python -c "from log_manager import LogManager; lm = LogManager(); print(lm.session_dir)"') do set LOG_DIR=%%i
+    echo [LOG] Agent logs will be saved to: %LOG_DIR%\agent\
+
+    REM Ensure log directory exists
+    if not exist "%LOG_DIR%\agent" mkdir "%LOG_DIR%\agent"
+
+    REM Start Agent with logging
+    start "YOLO-LLM Voice Agent" cmd /c "python voice_simple_final.py > \"%LOG_DIR%\agent\agent.log\" 2>&1"
     timeout /t 3 /nobreak
     echo [SUCCESS] Voice Control Agent started
 ) else (
@@ -154,6 +188,12 @@ echo Usage Instructions:
 echo 1. Visit http://localhost:5173 to use Web Interface
 echo 2. Stop all services by running: stop-all.bat
 echo 3. Check service status at: http://localhost:8083/health
+echo.
+echo LOG MANAGEMENT:
+echo - All logs are automatically saved to: %LOG_DIR%
+echo - Quick view logs: view_logs.bat
+echo - View errors: python log_reader.py -e
+echo - Monitor logs: python log_reader.py --watch
 echo ===================================
 
 echo.

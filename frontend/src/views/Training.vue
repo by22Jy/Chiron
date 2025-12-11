@@ -875,7 +875,7 @@ onMounted(async () => {
     await gestureStore.connect()
     console.log('✅ WebSocket预连接成功')
   } catch (error) {
-    console.warn('⚠️ WebSocket预连接失败，将在使用时重试:', error)
+    console.warn(' WebSocket预连接失败，将在使用时重试:', error)
   }
 })
 

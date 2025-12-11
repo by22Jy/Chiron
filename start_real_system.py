@@ -167,7 +167,7 @@ class RealSystemLauncher:
                 pass
             time.sleep(2)
 
-        self.log_manager.append_log(name, f"⚠️ 服务启动超时: {url}")
+        self.log_manager.append_log(name, f" 服务启动超时: {url}")
         return False
 
     def monitor_system(self):
@@ -242,7 +242,7 @@ class RealSystemLauncher:
 
             print("\n" + "="*60)
             if failed_services:
-                print(f"[SYSTEM] ⚠️ 部分服务启动失败: {', '.join(failed_services)}")
+                print(f"[SYSTEM]  部分服务启动失败: {', '.join(failed_services)}")
             else:
                 print("[SYSTEM] 🎉 所有服务启动成功！")
 

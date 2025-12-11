@@ -148,7 +148,7 @@ export class WebSocketService {
    */
   send(message) {
     if (!this.isConnected || !this.ws) {
-      console.warn('⚠️ WebSocket未连接，无法发送消息')
+      console.warn(' WebSocket未连接，无法发送消息')
       return false
     }
 

@@ -207,7 +207,7 @@ class SystemLauncher:
                 if response.status_code == 200:
                     self.log_manager.append_log(service.lower(), f"✅ 服务运行正常")
                 else:
-                    self.log_manager.append_log(service.lower(), f"⚠️ 服务响应异常: {response.status_code}")
+                    self.log_manager.append_log(service.lower(), f" 服务响应异常: {response.status_code}")
             except Exception as e:
                 self.log_manager.append_log(service.lower(), f"❌ 服务不可访问: {str(e)}")
 
@@ -264,7 +264,7 @@ class SystemLauncher:
 
             print("\n" + "="*60)
             if failed_services:
-                print(f"⚠️ 部分服务启动失败: {', '.join(failed_services)}")
+                print(f" 部分服务启动失败: {', '.join(failed_services)}")
             else:
                 print("🎉 所有服务启动成功！")
 

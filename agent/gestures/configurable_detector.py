@@ -85,7 +85,7 @@ class ConfigurableGestureDetector:
             print(f"✅ 加载了 {len(self.static_gestures)} 个静态手势，{len(self.dynamic_gestures)} 个动态手势")
 
         except FileNotFoundError:
-            print(f"⚠️ 配置文件 {self.config_file} 不存在，使用默认配置")
+            print(f" 配置文件 {self.config_file} 不存在，使用默认配置")
             self._create_default_config()
         except Exception as e:
             print(f"❌ 加载配置文件失败: {e}")

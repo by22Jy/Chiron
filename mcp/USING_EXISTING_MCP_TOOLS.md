@@ -444,7 +444,7 @@ async def deepseek_mcp_workflow():
 # 直接调用API，无需MCP中间层
 ```
 
-## ⚠️ 重要提醒
+##  重要提醒
 
 1. **避免使用虚假包名**: 之前提到的 `@sounddrill31/mcp-gmail` 等包名是不存在的
 2. **官方认证包**: 只使用 `@modelcontextprotocol/server-*` 系列的官方包

@@ -123,7 +123,7 @@ class SystemHealthMonitor:
                     logger.info(f"✅ {service.name}: Healthy ({response_time:.2f}s)")
                     return True
                 else:
-                    logger.warning(f"⚠️ {service.name}: HTTP {response.status}")
+                    logger.warning(f" {service.name}: HTTP {response.status}")
                     return False
 
         except Exception as e:

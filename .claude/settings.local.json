@@ -67,7 +67,17 @@
       "Bash(\".\\.venv\\Scripts\\pip.exe\" install pocketsphinx)",
       "Bash(\".\\.venv\\Scripts\\python.exe\" enhanced_mcp_server.py)",
       "Bash(mvn clean compile:*)",
-      "Bash(.stop-services.bat)"
+      "Bash(.stop-services.bat)",
+      "Bash(openspec list:*)",
+      "Bash(openspec:*)",
+      "Bash(if not exist .venv echo \"Creating virtual environment...\")",
+      "Bash(if:*)",
+      "Bash(then echo \"Creating virtual environment...\")",
+      "Bash(else echo \"Virtual environment already exists\")",
+      "Bash(fi)",
+      "Bash(.venvScriptspython.exe:*)",
+      "Bash(git add backend/src/main/java/com/example/aiorchestrator/controller/LLMController.java backend/src/main/java/com/example/aiorchestrator/service/AiOrchestratorService.java mcp/enhanced_mcp_server.py start-all.ps1)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

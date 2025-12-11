@@ -356,7 +356,7 @@ public class WorkflowEngine {
             return String.format("✅ 工作流执行成功！完成了 %d 个步骤：%s",
                                 completedSteps.size(), workflow.getDescription());
         } else {
-            return String.format("⚠️ 工作流部分完成。成功 %d 个步骤，失败 %d 个步骤。",
+            return String.format(" 工作流部分完成。成功 %d 个步骤，失败 %d 个步骤。",
                                 completedSteps.size(), failedSteps.size());
         }
     }

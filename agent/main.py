@@ -9,11 +9,12 @@ from typing import Dict, Optional, Any, List
 
 import requests
 import yaml
+import logging
 
 from video_processor import VideoProcessor, VideoConfig
 from gestures.mediapipe_detector import GestureResult
 from actions.executor import get_supported_actions, execute_action
-from logger_config import setup_component_logger
+# Removed duplicate logging import
 
 # Import new AI features
 try:
@@ -36,7 +37,9 @@ except Exception:  # pragma: no cover
     pyautogui = None
 
 # 设置主agent的日志
-logger = setup_component_logger("agent")
+# 使用标准日志
+logger = logging.getLogger(__name__)
+# Use standard logging instead of custom setup
 
 
 class AgentConfig:

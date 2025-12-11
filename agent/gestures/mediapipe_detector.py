@@ -11,10 +11,11 @@ import sys
 
 # 添加父目录到路径以导入logger_config
 sys.path.append(str(Path(__file__).parent.parent))
-from logger_config import setup_component_logger
+# Removed duplicate logging import
 
 # 设置手势检测模块的日志
-logger = setup_component_logger("detector")
+# Use standard logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass

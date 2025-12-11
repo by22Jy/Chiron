@@ -1,3 +1,4 @@
+import logging
 ﻿import cv2
 import threading
 import time
@@ -8,7 +9,7 @@ from dataclasses import dataclass
 
 from gestures.mediapipe_detector import MediaPipeGestureDetector, GestureResult
 from actions.executor import execute_action
-from logger_config import setup_component_logger
+# Removed duplicate logging import
 
 # Import AI service for YOLO detection
 try:
@@ -20,7 +21,8 @@ except ImportError:
     YOLO_DETECTION_AVAILABLE = False
 
 # 设置VideoProcessor的日志
-logger = setup_component_logger("video")
+# Use standard logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass

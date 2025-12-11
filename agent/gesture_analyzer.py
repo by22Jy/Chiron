@@ -1,3 +1,4 @@
+import logging
 """
 手势意图分析器 - 使用LLM分析手势的意图、情感和含义
 """
@@ -7,9 +8,10 @@ import requests
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from gestures.mediapipe_detector import GestureResult
-from logger_config import setup_component_logger
+# Removed duplicate logging import
 
-logger = setup_component_logger("gesture_analyzer")
+# Use standard logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass

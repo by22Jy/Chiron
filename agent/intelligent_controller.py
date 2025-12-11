@@ -1,3 +1,4 @@
+import logging
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -14,9 +15,10 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 import psutil
 
-from logger_config import setup_component_logger
+# Removed duplicate logging import
 
-logger = setup_component_logger("intelligent_controller")
+# Use standard logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass

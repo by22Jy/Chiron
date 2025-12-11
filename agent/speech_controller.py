@@ -1,3 +1,4 @@
+import logging
 """
 语音控制器 - 处理语音识别和命令解析
 """
@@ -29,9 +30,10 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pyautogui"])
     import pyautogui
 
-from logger_config import setup_component_logger
+# Removed duplicate logging import
 
-logger = setup_component_logger("speech")
+# Use standard logging
+logger = logging.getLogger(__name__)
 
 # 智能电脑控制
 try:

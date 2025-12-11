@@ -70,7 +70,7 @@ pip install -r requirements.txt -q
 echo [LOG] MCP logs will be saved to: %LOG_DIR%\mcp\
 
 REM Start MCP Server with logging
-start "YOLO-LLM Enhanced MCP Server" cmd /c ".venv\Scripts\activate.bat && set NEWS_API_KEY=%NEWS_API_KEY% && set WEATHER_API_KEY=%WEATHER_API_KEY% && set BREVO_API_KEY=%BREVO_API_KEY% && python enhanced_mcp_server.py > \"%LOG_DIR%\mcp\mcp_server.log\" 2>&1"
+start "YOLO-LLM New Modular MCP Server" cmd /c ".venv\Scripts\activate.bat && set NEWS_API_KEY=%NEWS_API_KEY% && set WEATHER_API_KEY=%WEATHER_API_KEY% && set BREVO_API_KEY=%BREVO_API_KEY% && cd mcp && python main.py > \"%LOG_DIR%\mcp\mcp_server.log\" 2>&1"
 timeout /t 8 /nobreak
 
 echo.

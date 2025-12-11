@@ -77,7 +77,8 @@
       "Bash(fi)",
       "Bash(.venvScriptspython.exe:*)",
       "Bash(git add backend/src/main/java/com/example/aiorchestrator/controller/LLMController.java backend/src/main/java/com/example/aiorchestrator/service/AiOrchestratorService.java mcp/enhanced_mcp_server.py start-all.ps1)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

@@ -187,7 +187,7 @@ function Start-MCPServer {
     Write-Host "[日志] MCP日志将保存到: $global:logDir\mcp\" -ForegroundColor Cyan
 
     $mcpLogFile = Join-Path $global:logDir "mcp\mcp_server.log"
-    $cmd = "& `"$venvPython`" enhanced_mcp_server.py 2>&1 | Out-File -FilePath `"$mcpLogFile`" -Encoding UTF8 -Append"
+    $cmd = "& `"$venvPython`" main.py 2>&1 | Out-File -FilePath `"$mcpLogFile`" -Encoding UTF8 -Append"
     $psArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$mcpDir`"; $cmd")
     Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized | Out-Null
     Write-Host "[SUCCESS] MCP Server starting: http://localhost:8083" -ForegroundColor Green

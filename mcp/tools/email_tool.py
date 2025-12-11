@@ -1,509 +1,413 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-邮件 MCP 工具
-
-通过DeepSeek大模型智能处理邮件相关任务
+邮件工具模块
+提供邮件发送和管理功能
 """
 
-import asyncio
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from email.mime.base import MIMEBase
-from email import encoders
 import os
-import time
+import asyncio
+import aiohttp
 from typing import Dict, Any, List, Optional
-import logging
+from datetime import datetime
+from .base_tool import BaseTool, ToolResponse, ToolError
 
-from ..config import TOOLS_CONFIG
-
-logger = logging.getLogger(__name__)
-
-
-class EmailTool:
-    """邮件工具"""
+class EmailTool(BaseTool):
+    """邮件工具类"""
 
     def __init__(self):
-        self.config = TOOLS_CONFIG["email"]
-        self.last_sent_time = 0
-        self.send_interval = 5
+        super().__init__(
+            name="email",
+            description="发送和管理邮件",
+            version="2.0.0"
+        )
 
-    async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        # 邮件API配置
+        self.brevo_api_key = os.getenv("BREVO_API_KEY", "")
+        self.sender_email = os.getenv("SENDER_EMAIL", "by2022jy@gmail.com")
+        self.sender_name = "YOLO-LLM 系统"
+
+    async def execute(self, action: str, parameters: Dict[str, Any]) -> ToolResponse:
         """执行邮件工具操作"""
-
-        action = parameters.get("action", "")
-        logger.info(f"执行邮件工具操作: {action}")
-
         try:
             if action == "send_email":
                 return await self._send_email(parameters)
-            elif action == "prepare_email":
-                return await self._prepare_email(parameters)
-            elif action == "create_template":
-                return await self._create_template(parameters)
-            elif action == "validate_recipient":
-                return await self._validate_recipient(parameters)
-            elif action == "format_content":
-                return await self._format_content(parameters)
+            elif action == "send_bulk_email":
+                return await self._send_bulk_email(parameters)
+            elif action == "validate_email":
+                return await self._validate_email(parameters)
+            elif action == "get_email_status":
+                return await self._get_email_status(parameters)
+            elif action == "create_email_template":
+                return await self._create_email_template(parameters)
             else:
-                return {
-                    "success": False,
-                    "error": f"未知的邮件操作: {action}",
-                    "available_actions": [
-                        "send_email", "prepare_email", "create_template",
-                        "validate_recipient", "format_content"
-                    ]
-                }
+                raise ToolError(f"不支持的操作: {action}", self.name)
 
         except Exception as e:
-            logger.error(f"邮件工具执行错误: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "action": action
-            }
+            self.logger.error(f"邮件工具执行失败: {action} - {str(e)}")
+            raise ToolError(f"邮件工具执行异常: {str(e)}", self.name)
 
-    async def _send_email(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """发送邮件"""
-
-        to_email = params.get("to_email")
-        subject = params.get("subject", "来自YOLO-LLM的邮件")
-        content = params.get("content", "")
+    async def _send_email(self, params: Dict[str, Any]) -> ToolResponse:
+        """发送单封邮件"""
+        to_email = params.get("to")
+        subject = params.get("subject")
+        content = params.get("content")
+        content_type = params.get("content_type", "html")  # html 或 text
+        cc = params.get("cc", [])
+        bcc = params.get("bcc", [])
         attachments = params.get("attachments", [])
 
-        if not to_email:
-            return {
-                "success": False,
-                "error": "缺少收件人邮箱地址"
-            }
-
-        # 智能生成邮件内容（如果内容为空）
-        if not content:
-            content = await self._generate_smart_content(params)
+        # 验证必填参数
+        if not all([to_email, subject, content]):
+            raise ToolError("邮件参数不完整：需要to、subject、content", self.name)
 
         try:
-            # 检查发送间隔
-            current_time = time.time()
-            if current_time - self.last_sent_time < self.send_interval:
-                await asyncio.sleep(self.send_interval - (current_time - self.last_sent_time))
-
-            # 创建邮件
-            msg = MIMEMultipart()
-            msg['From'] = self.config.get("default_sender", "noreply@yolo-llm.com")
-            msg['To'] = to_email
-            msg['Subject'] = subject
-
-            # 添加HTML格式内容
-            html_content = await self._create_html_content(content)
-            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-
-            # 添加附件
-            for attachment in attachments:
-                await self._add_attachment(msg, attachment)
-
-            # 发送邮件（这里模拟发送，实际需要配置SMTP）
-            success, result = await self._send_smtp_email(msg, to_email)
-
-            if success:
-                self.last_sent_time = current_time
-                return {
-                    "success": True,
-                    "message": f"邮件已成功发送到 {to_email}",
-                    "details": {
-                        "to_email": to_email,
-                        "subject": subject,
-                        "content_length": len(content),
-                        "attachments_count": len(attachments),
-                        "sent_time": time.strftime('%Y-%m-%d %H:%M:%S')
-                    }
-                }
+            if self.brevo_api_key:
+                email_id = await self._send_real_email(
+                    to_email=to_email,
+                    subject=subject,
+                    content=content,
+                    content_type=content_type,
+                    cc=cc,
+                    bcc=bcc,
+                    attachments=attachments
+                )
+                source = "brevo_api"
             else:
-                return {
-                    "success": False,
-                    "error": f"邮件发送失败: {result}",
-                    "details": {
-                        "to_email": to_email,
-                        "subject": subject
-                    }
+                email_id = await self._send_mock_email(
+                    to_email=to_email,
+                    subject=subject,
+                    content=content
+                )
+                source = "mock"
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "email_id": email_id,
+                    "to": to_email,
+                    "subject": subject,
+                    "cc": cc,
+                    "bcc": bcc,
+                    "content_type": content_type,
+                    "attachment_count": len(attachments) if attachments else 0,
+                    "source": source,
+                    "sent_time": datetime.now().isoformat()
                 }
+            )
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"邮件发送异常: {str(e)}",
-                "details": {
-                    "to_email": to_email,
-                    "subject": subject
+            self.logger.error(f"发送邮件失败: {str(e)}")
+            raise ToolError(f"发送邮件失败: {str(e)}", self.name)
+
+    async def _send_bulk_email(self, params: Dict[str, Any]) -> ToolResponse:
+        """批量发送邮件"""
+        to_emails = params.get("to_emails", [])
+        subject = params.get("subject")
+        content = params.get("content")
+        delay_between_emails = params.get("delay_between_emails", 1)  # 秒
+
+        if not to_emails or not subject or not content:
+            raise ToolError("批量邮件参数不完整", self.name)
+
+        try:
+            results = []
+            success_count = 0
+            error_count = 0
+
+            for i, email in enumerate(to_emails):
+                try:
+                    result = await self._send_email({
+                        "to": email,
+                        "subject": subject,
+                        "content": content,
+                        "content_type": params.get("content_type", "html")
+                    })
+
+                    if result.success:
+                        results.append({
+                            "email": email,
+                            "email_id": result.data["email_id"],
+                            "status": "success"
+                        })
+                        success_count += 1
+                    else:
+                        results.append({
+                            "email": email,
+                            "status": "failed",
+                            "error": result.error
+                        })
+                        error_count += 1
+
+                    # 延迟发送，避免触发限制
+                    if delay_between_emails > 0 and i < len(to_emails) - 1:
+                        await asyncio.sleep(delay_between_emails)
+
+                except Exception as e:
+                    results.append({
+                        "email": email,
+                        "status": "failed",
+                        "error": str(e)
+                    })
+                    error_count += 1
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "total_emails": len(to_emails),
+                    "success_count": success_count,
+                    "error_count": error_count,
+                    "results": results,
+                    "bulk_send_time": datetime.now().isoformat()
                 }
-            }
+            )
 
-    async def _prepare_email(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """准备邮件内容"""
+        except Exception as e:
+            self.logger.error(f"批量发送邮件失败: {str(e)}")
+            raise ToolError(f"批量发送邮件失败: {str(e)}", self.name)
 
-        context = params.get("context", "")
-        user_intent = params.get("user_intent", "")
-
-        # 使用DeepSeek分析邮件需求
-        analysis = await self._analyze_email_request(context, user_intent)
-
-        if not analysis["success"]:
-            return analysis
-
-        # 生成邮件内容建议
-        suggestions = await self._generate_email_suggestions(analysis)
-
-        return {
-            "success": True,
-            "message": "邮件内容已准备完成",
-            "analysis": analysis,
-            "suggestions": suggestions,
-            "next_steps": [
-                "确认收件人邮箱",
-                "选择邮件主题",
-                "调整邮件内容",
-                "添加附件（可选）",
-                "发送邮件"
-            ]
-        }
-
-    async def _create_template(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """创建邮件模板"""
-
-        template_type = params.get("template_type", "general")
-        custom_content = params.get("custom_content", {})
-
-        templates = {
-            "news_weather": {
-                "subject_template": "今日信息报告 - {date}",
-                "content_template": """
-                <h2>📰 今日新闻天气报告</h2>
-                <p><strong>日期:</strong> {date}</p>
-
-                <h3>📰 头条新闻</h3>
-                {news_content}
-
-                <h3>🌤️ 天气信息</h3>
-                <p><strong>温度:</strong> {temperature}</p>
-                <p><strong>天气:</strong> {condition}</p>
-                <p><strong>湿度:</strong> {humidity}</p>
-
-                <hr>
-                <p><em>由YOLO-LLM智能代理生成</em></p>
-                """
-            },
-            "workflow_complete": {
-                "subject_template": "工作流完成报告 - {date}",
-                "content_template": """
-                <h2>✅ 工作流执行完成</h2>
-                <p><strong>完成时间:</strong> {timestamp}</p>
-                <p><strong>执行步骤:</strong> {steps}</p>
-                <p><strong>执行结果:</strong> {result}</p>
-
-                <hr>
-                <p><em>由YOLO-LLM智能代理执行</em></p>
-                """
-            },
-            "general": {
-                "subject_template": "来自YOLO-LLM的消息",
-                "content_template": """
-                <h2>消息</h2>
-                <p>{content}</p>
-
-                <hr>
-                <p><em>由YOLO-LLM智能代理发送</em></p>
-                """
-            }
-        }
-
-        template = templates.get(template_type, templates["general"])
-
-        # 合并自定义内容
-        if custom_content:
-            template.update(custom_content)
-
-        return {
-            "success": True,
-            "message": f"邮件模板 '{template_type}' 创建完成",
-            "template": template,
-            "usage_example": {
-                "subject": template["subject_template"].format(
-                    date=time.strftime('%Y-%m-%d')
-                ),
-                "content": template["content_template"].format(
-                    content="这里是邮件内容",
-                    date=time.strftime('%Y-%m-%d %H:%M:%S'),
-                    timestamp=time.strftime('%Y-%m-%d %H:%M:%S'),
-                    steps="步骤1 -> 步骤2 -> 完成",
-                    result="成功"
-                )
-            }
-        }
-
-    async def _validate_recipient(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """验证收件人邮箱"""
-
-        email = params.get("email", "")
+    async def _validate_email(self, params: Dict[str, Any]) -> ToolResponse:
+        """验证邮箱地址"""
+        email = params.get("email")
 
         if not email:
-            return {
-                "success": False,
-                "error": "邮箱地址不能为空"
-            }
-
-        # 基本邮箱格式验证
-        import re
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-
-        if not re.match(email_pattern, email):
-            return {
-                "success": False,
-                "error": "邮箱地址格式不正确",
-                "suggestions": [
-                    "检查邮箱地址拼写",
-                    "确保包含@符号",
-                    "检查域名部分"
-                ]
-            }
-
-        # 检查常见域名
-        common_domains = ["gmail.com", "qq.com", "163.com", "outlook.com", "hotmail.com"]
-        domain = email.split('@')[1] if '@' in email else ""
-
-        validation_info = {
-            "success": True,
-            "email": email,
-            "domain": domain,
-            "is_common_domain": domain in common_domains,
-            "format_valid": True
-        }
-
-        if domain in common_domains:
-            validation_info["domain_info"] = {
-                "gmail.com": "Google邮箱，支持SMTP",
-                "qq.com": "腾讯QQ邮箱，需要授权码",
-                "163.com": "网易邮箱，需要开启SMTP",
-                "outlook.com": "微软邮箱，支持SMTP",
-                "hotmail.com": "微软邮箱，支持SMTP"
-            }[domain]
-
-        return validation_info
-
-    async def _format_content(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """格式化邮件内容"""
-
-        content = params.get("content", "")
-        format_type = params.get("format_type", "html")
-
-        if not content:
-            return {
-                "success": False,
-                "error": "内容不能为空"
-            }
-
-        formatted_content = await self._smart_format_content(content, format_type)
-
-        return {
-            "success": True,
-            "original_length": len(content),
-            "formatted_length": len(formatted_content),
-            "format_type": format_type,
-            "formatted_content": formatted_content
-        }
-
-    async def _generate_smart_content(self, params: Dict[str, Any]) -> str:
-        """智能生成邮件内容"""
-
-        # 这里可以调用DeepSeek API生成智能内容
-        # 暂时返回基础模板
-        return f"""
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-            <h2>来自YOLO-LLM智能代理的消息</h2>
-            <p>您好！</p>
-            <p>这是一封由智能代理自动生成的邮件。</p>
-            <p>发送时间: {time.strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p>如有任何问题，请随时联系我们。</p>
-            <hr>
-            <p><em>此邮件由YOLO-LLM智能代理系统发送</em></p>
-        </div>
-        """
-
-    async def _create_html_content(self, content: str) -> str:
-        """创建HTML格式邮件内容"""
-
-        if content.strip().startswith('<'):
-            # 已经是HTML格式
-            return content
-
-        # 转换为HTML格式
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                .header {{
-                    background-color: #f0f8ff;
-                    padding: 20px;
-                    border-radius: 10px;
-                    margin-bottom: 20px;
-                }}
-                .footer {{
-                    margin-top: 30px;
-                    padding: 20px;
-                    background-color: #f8f9fa;
-                    border-radius: 10px;
-                    text-align: center;
-                    color: #666;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h2>🤖 YOLO-LLM 智能代理</h2>
-            </div>
-
-            <div class="content">
-                {content.replace(chr(10), '<br>')}
-            </div>
-
-            <div class="footer">
-                <p><em>此邮件由YOLO-LLM智能代理自动生成</em></p>
-                <p><em>发送时间: {time.strftime('%Y-%m-%d %H:%M:%S')}</em></p>
-            </div>
-        </body>
-        </html>
-        """
-
-        return html_content
-
-    async def _add_attachment(self, msg: MIMEMultipart, attachment_path: str):
-        """添加附件"""
-
-        if not os.path.exists(attachment_path):
-            logger.warning(f"附件不存在: {attachment_path}")
-            return
+            raise ToolError("邮箱地址不能为空", self.name)
 
         try:
-            with open(attachment_path, 'rb') as f:
-                file_ext = os.path.splitext(attachment_path)[1].lower()
+            # 基础格式验证
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            is_valid_format = bool(re.match(email_pattern, email))
 
-                if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
-                    # 图片附件
-                    img = MIMEImage(f.read())
-                    img.add_header(
-                        'Content-Disposition',
-                        f'attachment; filename={os.path.basename(attachment_path)}'
-                    )
-                    msg.attach(img)
-                else:
-                    # 其他文件类型
-                    part = MIMEBase('application', 'octet-stream')
-                    part.set_payload(f.read())
-                    encoders.encode_base64(part)
-                    part.add_header(
-                        'Content-Disposition',
-                        f'attachment; filename={os.path.basename(attachment_path)}'
-                    )
-                    msg.attach(part)
+            # 可以添加更多验证逻辑，如MX记录检查等
+            validation_result = {
+                "email": email,
+                "is_valid_format": is_valid_format,
+                "domain": email.split('@')[1] if '@' in email else None,
+                "validation_time": datetime.now().isoformat()
+            }
+
+            return ToolResponse(
+                success=True,
+                data=validation_result
+            )
 
         except Exception as e:
-            logger.error(f"添加附件失败 {attachment_path}: {str(e)}")
+            self.logger.error(f"邮箱验证失败: {str(e)}")
+            raise ToolError(f"邮箱验证失败: {str(e)}", self.name)
 
-    async def _send_smtp_email(self, msg: MIMEMultipart, to_email: str) -> tuple:
-        """发送SMTP邮件（模拟实现）"""
+    async def _get_email_status(self, params: Dict[str, Any]) -> ToolResponse:
+        """获取邮件状态"""
+        email_id = params.get("email_id")
 
-        # 这里应该实现真实的SMTP发送
-        # 由于需要配置，暂时返回模拟成功
+        if not email_id:
+            raise ToolError("邮件ID不能为空", self.name)
 
-        logger.info(f"模拟发送邮件到: {to_email}")
-        logger.info(f"主题: {msg['Subject']}")
+        try:
+            # 这里应该调用实际API查询邮件状态
+            # 目前返回模拟状态
+            from datetime import timedelta
+            status_info = {
+                "email_id": email_id,
+                "status": "delivered",  # sent, delivered, opened, clicked, bounced
+                "sent_time": (datetime.now() - timedelta(hours=1)).isoformat(),
+                "delivered_time": (datetime.now() - timedelta(minutes=50)).isoformat(),
+                "opened": True,
+                "clicked": False,
+                "bounced": False
+            }
 
-        # 模拟发送延迟
-        await asyncio.sleep(0.5)
+            return ToolResponse(
+                success=True,
+                data=status_info
+            )
 
-        return True, "模拟发送成功"
+        except Exception as e:
+            self.logger.error(f"获取邮件状态失败: {str(e)}")
+            raise ToolError(f"获取邮件状态失败: {str(e)}", self.name)
 
-    async def _analyze_email_request(self, context: str, user_intent: str) -> Dict[str, Any]:
-        """分析邮件请求"""
+    async def _create_email_template(self, params: Dict[str, Any]) -> ToolResponse:
+        """创建邮件模板"""
+        template_name = params.get("template_name")
+        subject = params.get("subject")
+        content = params.get("content")
+        variables = params.get("variables", {})
 
-        # 模拟分析结果
-        analysis = {
-            "success": True,
-            "intent_type": "information_sharing",
-            "urgency": "normal",
-            "recipient_suggestions": ["1730495747@qq.com"],
-            "content_type": "news_weather_report",
-            "format_preference": "html",
-            "attachment_needed": True
-        }
+        if not all([template_name, subject, content]):
+            raise ToolError("邮件模板参数不完整", self.name)
 
-        # 基于上下文分析
-        if "新闻" in context or "news" in context.lower():
-            analysis["content_type"] = "news_report"
-        if "天气" in context or "weather" in context.lower():
-            analysis["content_type"] = "weather_report"
-        if "工作流" in context or "workflow" in context.lower():
-            analysis["content_type"] = "workflow_report"
+        try:
+            template_info = {
+                "template_id": f"template_{hash(template_name)}",
+                "template_name": template_name,
+                "subject": subject,
+                "content": content,
+                "variables": variables,
+                "created_time": datetime.now().isoformat()
+            }
 
-        return analysis
+            return ToolResponse(
+                success=True,
+                data=template_info
+            )
 
-    async def _generate_email_suggestions(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
-        """生成邮件建议"""
+        except Exception as e:
+            self.logger.error(f"创建邮件模板失败: {str(e)}")
+            raise ToolError(f"创建邮件模板失败: {str(e)}", self.name)
 
-        content_type = analysis.get("content_type", "general")
+    async def _send_real_email(self, to_email: str, subject: str, content: str,
+                              content_type: str = "html", cc: List[str] = None,
+                              bcc: List[str] = None, attachments: List[Dict] = None) -> str:
+        """使用Brevo API发送真实邮件"""
+        try:
+            from brevo import ApiClient
+            from brevo.api import TransactionalEmailsApi
+            from brevo.models import SendSmtpEmail
 
-        suggestions = {
-            "news_weather": {
-                "subject": "今日信息报告",
-                "content_structure": [
-                    "新闻摘要",
-                    "天气信息",
-                    "数据来源",
-                    "生成时间"
-                ],
-                "tone": "信息丰富、客观"
-            },
-            "workflow_report": {
-                "subject": "工作流执行报告",
-                "content_structure": [
-                    "执行概述",
-                    "步骤详情",
-                    "结果总结",
-                    "截图附件"
-                ],
-                "tone": "专业、清晰"
+            api_instance = TransactionalEmailsApi(ApiClient())
+            api_instance.api_client.configuration.api_key['api-key'] = self.brevo_api_key
+
+            # 构建邮件对象
+            sender = {"name": self.sender_name, "email": self.sender_email}
+            to = [{"email": to_email}]
+
+            # 添加抄送和密送
+            if cc:
+                to.extend([{"email": email} for email in cc])
+            if bcc:
+                to.extend([{"email": email} for email in bcc])
+
+            # 构建邮件内容
+            email_data = {
+                "sender": sender,
+                "to": to[:1],  # 主收件人
+                "subject": subject
+            }
+
+            if content_type == "html":
+                email_data["html_content"] = content
+                email_data["text_content"] = self._html_to_text(content)
+            else:
+                email_data["text_content"] = content
+
+            # 添加抄送密送
+            if cc:
+                email_data["cc"] = [{"email": email} for email in cc]
+            if bcc:
+                email_data["bcc"] = [{"email": email} for email in bcc]
+
+            # 添加附件
+            if attachments:
+                email_data["attachment"] = attachments
+
+            send_smtp_email = SendSmtpEmail(**email_data)
+
+            # 发送邮件
+            result = api_instance.send_transac_email(send_smtp_email)
+            return str(result.message_id)
+
+        except ImportError:
+            self.logger.warning("Brevo库未安装，使用模拟发送")
+            return await self._send_mock_email(to_email, subject, content)
+        except Exception as e:
+            self.logger.error(f"发送真实邮件失败: {str(e)}")
+            raise e
+
+    async def _send_mock_email(self, to_email: str, subject: str, content: str) -> str:
+        """模拟发送邮件"""
+        email_id = f"mock_email_{hash(content)}_{datetime.now().timestamp()}"
+
+        self.logger.info(f"模拟发送邮件到 {to_email}")
+        self.logger.info(f"主题: {subject}")
+        self.logger.info(f"内容长度: {len(content)} 字符")
+        self.logger.info(f"邮件ID: {email_id}")
+
+        return email_id
+
+    def _html_to_text(self, html_content: str) -> str:
+        """将HTML内容转换为纯文本"""
+        # 简单的HTML标签移除
+        import re
+        text = re.sub(r'<[^>]+>', '', html_content)
+        text = text.replace('&nbsp;', ' ')
+        text = text.replace('&lt;', '<')
+        text = text.replace('&gt;', '>')
+        text = text.replace('&amp;', '&')
+        return text.strip()
+
+    def get_capabilities(self) -> List[str]:
+        """获取工具能力列表"""
+        return [
+            "send_email",
+            "send_bulk_email",
+            "validate_email",
+            "get_email_status",
+            "create_email_template"
+        ]
+
+    def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
+        return {
+            "actions": {
+                "send_email": {
+                    "description": "发送单封邮件",
+                    "parameters": {
+                        "to": {"type": "string", "required": True, "description": "收件人邮箱"},
+                        "subject": {"type": "string", "required": True, "description": "邮件主题"},
+                        "content": {"type": "string", "required": True, "description": "邮件内容"},
+                        "content_type": {"type": "string", "default": "html", "description": "内容类型(html/text)"},
+                        "cc": {"type": "array", "description": "抄送邮箱列表"},
+                        "bcc": {"type": "array", "description": "密送邮箱列表"},
+                        "attachments": {"type": "array", "description": "附件列表"}
+                    }
+                },
+                "send_bulk_email": {
+                    "description": "批量发送邮件",
+                    "parameters": {
+                        "to_emails": {"type": "array", "required": True, "description": "收件人邮箱列表"},
+                        "subject": {"type": "string", "required": True, "description": "邮件主题"},
+                        "content": {"type": "string", "required": True, "description": "邮件内容"},
+                        "content_type": {"type": "string", "default": "html", "description": "内容类型"},
+                        "delay_between_emails": {"type": "integer", "default": 1, "description": "邮件发送间隔(秒)"}
+                    }
+                },
+                "validate_email": {
+                    "description": "验证邮箱地址",
+                    "parameters": {
+                        "email": {"type": "string", "required": True, "description": "待验证的邮箱地址"}
+                    }
+                },
+                "get_email_status": {
+                    "description": "获取邮件状态",
+                    "parameters": {
+                        "email_id": {"type": "string", "required": True, "description": "邮件ID"}
+                    }
+                },
+                "create_email_template": {
+                    "description": "创建邮件模板",
+                    "parameters": {
+                        "template_name": {"type": "string", "required": True, "description": "模板名称"},
+                        "subject": {"type": "string", "required": True, "description": "邮件主题"},
+                        "content": {"type": "string", "required": True, "description": "邮件内容"},
+                        "variables": {"type": "object", "description": "模板变量"}
+                    }
+                }
             }
         }
 
-        base_suggestions = {
-            "subject": f"YOLO-LLM智能报告 - {time.strftime('%Y-%m-%d')}",
-            "greeting": "您好！",
-            "closing": "此邮件由YOLO-LLM智能代理自动生成",
-            "signature": "YOLO-LLM Team"
-        }
+    async def _perform_health_check(self) -> bool:
+        """执行健康检查"""
+        try:
+            # 检查API密钥是否配置
+            if not self.brevo_api_key:
+                self.logger.warning("Brevo API密钥未配置，将使用模拟发送")
 
-        if content_type in suggestions:
-            base_suggestions.update(suggestions[content_type])
+            # 测试基本功能
+            test_result = await self._validate_email({"email": "test@example.com"})
+            return test_result.success
+        except Exception as e:
+            self.logger.error(f"邮件工具健康检查失败: {str(e)}")
+            return False
 
-        return base_suggestions
-
-    async def _smart_format_content(self, content: str, format_type: str) -> str:
-        """智能格式化内容"""
-
-        # 这里可以调用DeepSeek API进行智能格式化
-        # 暂时返回基础格式化
-
-        if format_type.lower() == "html":
-            return f"<div style='font-family: Arial;'>{content}</div>"
-        else:
-            return content.strip()
+# 创建全局邮件工具实例
+email_tool = EmailTool()

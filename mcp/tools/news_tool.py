@@ -1,552 +1,508 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-新闻 MCP 工具
-
-通过DeepSeek大模型智能处理新闻相关任务
+新闻工具模块
+提供新闻获取和处理功能
 """
 
-import asyncio
-import requests
-import json
-import time
-from typing import Dict, Any, List, Optional
-import logging
 import os
+import asyncio
+import aiohttp
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timedelta
+from .base_tool import BaseTool, ToolResponse, ToolError
 
-from ..config import TOOLS_CONFIG
-
-logger = logging.getLogger(__name__)
-
-
-class NewsTool:
-    """新闻工具"""
+class NewsTool(BaseTool):
+    """新闻工具类"""
 
     def __init__(self):
-        self.config = TOOLS_CONFIG["news"]
-        self.cache = {}
-        self.cache_timeout = 3600  # 1小时缓存
+        super().__init__(
+            name="news",
+            description="获取最新新闻资讯，支持多种新闻源和语言",
+            version="2.0.0"
+        )
 
-    async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        # 新闻API配置
+        self.news_api_key = os.getenv("NEWS_API_KEY", "")
+        self.default_count = 10
+        self.default_country = "us"
+        self.cache_ttl = 600  # 10分钟缓存
+
+        # 支持的国家和语言
+        self.supported_countries = {
+            "us": "en", "gb": "en", "ca": "en", "au": "en",
+            "cn": "zh", "tw": "zh", "hk": "zh",
+            "jp": "ja", "kr": "ko",
+            "de": "de", "fr": "fr", "it": "it", "es": "es", "pt": "pt",
+            "ru": "ru", "in": "hi"
+        }
+
+    async def execute(self, action: str, parameters: Dict[str, Any]) -> ToolResponse:
         """执行新闻工具操作"""
-
-        action = parameters.get("action", "")
-        logger.info(f"执行新闻工具操作: {action}")
-
         try:
-            if action == "get_top_news":
-                return await self._get_top_news(parameters)
+            if action == "get_news":
+                return await self._get_news(parameters)
             elif action == "search_news":
                 return await self._search_news(parameters)
-            elif action == "summarize_news":
-                return await self._summarize_news(parameters)
-            elif action == "filter_news":
-                return await self._filter_news(parameters)
-            elif action == "analyze_trends":
-                return await self._analyze_trends(parameters)
-            elif action == "create_report":
-                return await self._create_report(parameters)
+            elif action == "get_headlines":
+                return await self._get_headlines(parameters)
+            elif action == "get_sources":
+                return await self._get_news_sources(parameters)
             else:
-                return {
-                    "success": False,
-                    "error": f"未知的新闻操作: {action}",
-                    "available_actions": [
-                        "get_top_news", "search_news", "summarize_news",
-                        "filter_news", "analyze_trends", "create_report"
-                    ]
-                }
+                raise ToolError(f"不支持的操作: {action}", self.name)
 
         except Exception as e:
-            logger.error(f"新闻工具执行错误: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "action": action
-            }
+            self.logger.error(f"新闻工具执行失败: {action} - {str(e)}")
+            raise ToolError(f"新闻工具执行异常: {str(e)}", self.name)
 
-    async def _get_top_news(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """获取头条新闻"""
-
-        count = params.get("count", 10)
-        category = params.get("category", "general")
-        country = params.get("country", "cn")
+    async def _get_news(self, params: Dict[str, Any]) -> ToolResponse:
+        """获取新闻"""
+        count = params.get("count", self.default_count)
+        country = params.get("country", self.default_country)
+        category = params.get("category", None)
+        language = params.get("language", self.supported_countries.get(country, "en"))
 
         try:
-            # 检查缓存
-            cache_key = f"top_news_{country}_{category}_{count}"
-            if cache_key in self.cache:
-                cached_data = self.cache[cache_key]
-                if time.time() - cached_data["timestamp"] < self.cache_timeout:
-                    logger.info("使用缓存新闻数据")
-                    return cached_data["data"]
-
-            # 尝试获取真实新闻
-            news_data = await self._fetch_real_news(count, category, country)
-
-            if news_data["success"]:
-                # 缓存数据
-                self.cache[cache_key] = {
-                    "timestamp": time.time(),
-                    "data": news_data
-                }
-                return news_data
+            if self.news_api_key:
+                news_data = await self._fetch_real_news(count, country, category, language)
             else:
-                # 使用模拟新闻
-                mock_news = await self._generate_mock_news(count, category)
-                return mock_news
+                news_data = self._get_mock_news(count)
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "articles": news_data,
+                    "count": len(news_data),
+                    "country": country,
+                    "category": category,
+                    "language": language,
+                    "source": "real_api" if self.news_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
+                }
+            )
 
         except Exception as e:
-            logger.error(f"获取新闻失败: {str(e)}")
-            # 返回模拟新闻作为后备
-            return await self._generate_mock_news(count, category)
+            self.logger.error(f"获取新闻失败: {str(e)}")
+            raise ToolError(f"获取新闻失败: {str(e)}", self.name)
 
-    async def _search_news(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _search_news(self, params: Dict[str, Any]) -> ToolResponse:
         """搜索新闻"""
-
         query = params.get("query", "")
-        count = params.get("count", 10)
+        count = params.get("count", self.default_count)
+        language = params.get("language", "en")
+        sort_by = params.get("sort_by", "publishedAt")
 
         if not query:
-            return {
-                "success": False,
-                "error": "搜索关键词不能为空"
-            }
+            raise ToolError("搜索关键词不能为空", self.name)
 
         try:
-            # 使用DeepSeek分析搜索意图
-            search_analysis = await self._analyze_search_query(query)
+            if self.news_api_key:
+                news_data = await self._search_real_news(query, count, language, sort_by)
+            else:
+                news_data = self._search_mock_news(query, count)
 
-            # 基于分析结果生成相关新闻
-            relevant_news = await self._generate_relevant_news(query, search_analysis, count)
-
-            return {
-                "success": True,
-                "query": query,
-                "analysis": search_analysis,
-                "news": relevant_news,
-                "count": len(relevant_news)
-            }
-
-        except Exception as e:
-            logger.error(f"搜索新闻失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "query": query
-            }
-
-    async def _summarize_news(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """总结新闻"""
-
-        news_list = params.get("news_list", [])
-        summary_type = params.get("summary_type", "brief")
-        max_length = params.get("max_length", 200)
-
-        if not news_list:
-            return {
-                "success": False,
-                "error": "新闻列表不能为空"
-            }
-
-        try:
-            # 使用DeepSeek生成智能摘要
-            summary = await self._generate_intelligent_summary(news_list, summary_type, max_length)
-
-            return {
-                "success": True,
-                "summary": summary,
-                "original_count": len(news_list),
-                "summary_type": summary_type,
-                "summary_length": len(summary)
-            }
-
-        except Exception as e:
-            logger.error(f"新闻摘要失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _filter_news(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """过滤新闻"""
-
-        news_list = params.get("news_list", [])
-        filters = params.get("filters", {})
-
-        if not news_list:
-            return {
-                "success": False,
-                "error": "新闻列表不能为空"
-            }
-
-        try:
-            filtered_news = await self._apply_intelligent_filters(news_list, filters)
-
-            return {
-                "success": True,
-                "original_count": len(news_list),
-                "filtered_count": len(filtered_news),
-                "filters_applied": filters,
-                "filtered_news": filtered_news
-            }
-
-        except Exception as e:
-            logger.error(f"新闻过滤失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _analyze_trends(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """分析新闻趋势"""
-
-        news_list = params.get("news_list", [])
-        analysis_type = params.get("analysis_type", "topics")
-
-        if not news_list:
-            return {
-                "success": False,
-                "error": "新闻列表不能为空"
-            }
-
-        try:
-            trend_analysis = await self._perform_trend_analysis(news_list, analysis_type)
-
-            return {
-                "success": True,
-                "analysis_type": analysis_type,
-                "trend_analysis": trend_analysis,
-                "analyzed_count": len(news_list)
-            }
-
-        except Exception as e:
-            logger.error(f"趋势分析失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _create_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """创建新闻报告"""
-
-        report_type = params.get("report_type", "daily")
-        time_range = params.get("time_range", "today")
-        include_analysis = params.get("include_analysis", True)
-
-        try:
-            # 获取新闻数据
-            news_data = await self._get_top_news({"count": 20})
-
-            if not news_data["success"]:
-                return {
-                    "success": False,
-                    "error": "无法获取新闻数据"
+            return ToolResponse(
+                success=True,
+                data={
+                    "articles": news_data,
+                    "count": len(news_data),
+                    "query": query,
+                    "language": language,
+                    "sort_by": sort_by,
+                    "source": "real_api" if self.news_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
                 }
-
-            # 生成报告
-            report = await self._generate_news_report(
-                news_data["news"],
-                report_type,
-                time_range,
-                include_analysis
             )
 
-            return {
-                "success": True,
-                "report": report,
-                "metadata": {
-                    "report_type": report_type,
-                    "time_range": time_range,
-                    "news_count": len(news_data["news"]),
-                    "generated_time": time.strftime('%Y-%m-%d %H:%M:%S')
-                }
-            }
-
         except Exception as e:
-            logger.error(f"创建报告失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            self.logger.error(f"搜索新闻失败: {str(e)}")
+            raise ToolError(f"搜索新闻失败: {str(e)}", self.name)
 
-    async def _fetch_real_news(self, count: int, category: str, country: str) -> Dict[str, Any]:
-        """获取真实新闻API数据"""
-
-        api_key = self.config.get("api_key")
-        if not api_key:
-            return {"success": False, "error": "新闻API密钥未配置"}
+    async def _get_headlines(self, params: Dict[str, Any]) -> ToolResponse:
+        """获取头条新闻"""
+        country = params.get("country", self.default_country)
+        category = params.get("category", None)
+        page_size = params.get("page_size", self.default_count)
 
         try:
+            if self.news_api_key:
+                headlines_data = await self._fetch_headlines(country, category, page_size)
+            else:
+                headlines_data = self._get_mock_headlines(page_size)
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "headlines": headlines_data,
+                    "count": len(headlines_data),
+                    "country": country,
+                    "category": category,
+                    "source": "real_api" if self.news_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"获取头条新闻失败: {str(e)}")
+            raise ToolError(f"获取头条新闻失败: {str(e)}", self.name)
+
+    async def _get_news_sources(self, params: Dict[str, Any]) -> ToolResponse:
+        """获取新闻源列表"""
+        country = params.get("country", None)
+        category = params.get("category", None)
+        language = params.get("language", None)
+
+        try:
+            if self.news_api_key:
+                sources_data = await self._fetch_sources(country, category, language)
+            else:
+                sources_data = self._get_mock_sources()
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "sources": sources_data,
+                    "count": len(sources_data),
+                    "country": country,
+                    "category": category,
+                    "language": language,
+                    "source": "real_api" if self.news_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"获取新闻源失败: {str(e)}")
+            raise ToolError(f"获取新闻源失败: {str(e)}", self.name)
+
+    async def _fetch_real_news(self, count: int, country: str, category: str, language: str) -> List[Dict[str, Any]]:
+        """从真实API获取新闻"""
+        try:
+            from newsapi import NewsApiClient
+            newsapi = NewsApiClient(api_key=self.news_api_key)
+
             # 构建请求参数
-            params = {
-                "apiKey": api_key,
-                "country": country,
-                "pageSize": min(count, 100),
-                "sortBy": "publishedAt",
-                "language": "zh"
+            request_params = {
+                "page_size": min(count, 100),  # API限制最多100条
+                "language": language
             }
 
-            # 发送请求
-            response = requests.get(
-                f"{self.config['base_url']}/top-headlines",
-                params=params,
-                timeout=10
+            # 根据请求类型选择API端点
+            if category:
+                request_params["category"] = category
+                if country != "all":
+                    request_params["country"] = country
+                response = newsapi.get_top_headlines(**request_params)
+            else:
+                if country == "cn":
+                    # 对于中国，使用关键词搜索
+                    response = newsapi.get_everything(
+                        q='科技 OR 财经 OR 国际',
+                        language=language,
+                        page_size=request_params["page_size"],
+                        sort_by="publishedAt"
+                    )
+                else:
+                    if country != "all":
+                        request_params["country"] = country
+                    response = newsapi.get_top_headlines(**request_params)
+
+            if response["status"] == "ok":
+                articles = []
+                for article in response.get("articles", []):
+                    articles.append({
+                        "title": article.get("title", ""),
+                        "description": article.get("description", ""),
+                        "content": article.get("content", ""),
+                        "author": article.get("author", ""),
+                        "source": article.get("source", {}).get("name", ""),
+                        "url": article.get("url", ""),
+                        "image_url": article.get("urlToImage", ""),
+                        "published_at": article.get("publishedAt", ""),
+                        "category": category or "general"
+                    })
+                return articles[:count]
+            else:
+                raise Exception(f"API返回错误: {response.get('message', '未知错误')}")
+
+        except ImportError:
+            self.logger.warning("newsapi库未安装，使用模拟数据")
+            return self._get_mock_news(count)
+        except Exception as e:
+            self.logger.error(f"获取真实新闻失败: {str(e)}")
+            raise e
+
+    async def _search_real_news(self, query: str, count: int, language: str, sort_by: str) -> List[Dict[str, Any]]:
+        """从真实API搜索新闻"""
+        try:
+            from newsapi import NewsApiClient
+            newsapi = NewsApiClient(api_key=self.news_api_key)
+
+            response = newsapi.get_everything(
+                q=query,
+                language=language,
+                sort_by=sort_by,
+                page_size=min(count, 100)
             )
 
-            response.raise_for_status()
-            data = response.json()
-
-            # 解析新闻数据
-            articles = data.get("articles", [])
-            news_list = []
-
-            for i, article in enumerate(articles[:count], 1):
-                news_item = {
-                    "id": f"news_{i}",
-                    "title": article.get("title", "").strip(),
-                    "description": article.get("description", "").strip(),
-                    "source": article.get("source", {}).get("name", "未知来源"),
-                    "published_at": article.get("publishedAt", ""),
-                    "url": article.get("url", ""),
-                    "image_url": article.get("urlToImage", "")
-                }
-                news_list.append(news_item)
-
-            return {
-                "success": True,
-                "news": news_list,
-                "count": len(news_list),
-                "source": "real_api"
-            }
+            if response["status"] == "ok":
+                articles = []
+                for article in response.get("articles", []):
+                    articles.append({
+                        "title": article.get("title", ""),
+                        "description": article.get("description", ""),
+                        "content": article.get("content", ""),
+                        "author": article.get("author", ""),
+                        "source": article.get("source", {}).get("name", ""),
+                        "url": article.get("url", ""),
+                        "image_url": article.get("urlToImage", ""),
+                        "published_at": article.get("publishedAt", ""),
+                        "relevance_score": self._calculate_relevance(query, article)
+                    })
+                return articles[:count]
+            else:
+                raise Exception(f"API返回错误: {response.get('message', '未知错误')}")
 
         except Exception as e:
-            logger.error(f"获取真实新闻失败: {str(e)}")
-            return {"success": False, "error": str(e)}
+            self.logger.error(f"搜索真实新闻失败: {str(e)}")
+            raise e
 
-    async def _generate_mock_news(self, count: int, category: str = "general") -> Dict[str, Any]:
-        """生成模拟新闻数据"""
+    async def _fetch_headlines(self, country: str, category: str, page_size: int) -> List[Dict[str, Any]]:
+        """获取头条新闻"""
+        try:
+            from newsapi import NewsApiClient
+            newsapi = NewsApiClient(api_key=self.news_api_key)
 
-        # 根据类别生成不同类型的新闻
-        news_templates = {
-            "technology": [
-                "全球AI技术突破：新型大模型发布，性能提升显著",
-                "科技公司股价创新高，市场前景乐观",
-                "新一代芯片技术发布，算力提升10倍",
-                "量子计算重大进展，商业化进程加速",
-                "5G网络覆盖率大幅提升，6G研发启动"
-            ],
-            "business": [
-                "全球经济数据超预期，股市普涨",
-                "新能源汽车销量创新纪录，产业链受益",
-                "电商平台推出新政策，助力中小企业发展",
-                "国际贸易协议签署，全球贸易格局重塑",
-                "金融科技创新，数字货币应用扩大"
-            ],
-            "general": [
-                "全球AI技术突破：新型大模型发布，性能提升显著",
-                "科技股大涨：多家AI公司股价创新高，市场乐观",
-                "新能源汽车销量创新纪录：电动汽车普及加速",
-                "医疗领域重大发现：新基因疗法获批，前景广阔",
-                "航天事业：新一代火箭成功发射，载人任务即将启动",
-                "环境保护：碳中和目标进展顺利，绿色能源投资增加",
-                "教育改革：在线教育新政策发布，数字化转型加速",
-                "体育盛事：重要国际赛事即将开始，备受关注",
-                "经济数据：GDP增长超预期，经济复苏势头强劲",
-                "国际合作：多项重要协议签署，全球治理改善"
-            ]
-        }
+            params = {"page_size": min(page_size, 100)}
+            if country != "all":
+                params["country"] = country
+            if category:
+                params["category"] = category
 
-        templates = news_templates.get(category, news_templates["general"])
-        selected_news = templates[:min(count, len(templates))]
+            response = newsapi.get_top_headlines(**params)
 
-        news_list = []
-        for i, title in enumerate(selected_news, 1):
-            news_item = {
-                "id": f"mock_news_{i}",
-                "title": title,
-                "description": f"这是关于{title}的详细描述...",
-                "source": "模拟新闻源",
-                "published_at": time.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                "url": f"https://example.com/news/{i}",
-                "image_url": ""
+            if response["status"] == "ok":
+                headlines = []
+                for article in response.get("articles", []):
+                    headlines.append({
+                        "title": article.get("title", ""),
+                        "description": article.get("description", ""),
+                        "source": article.get("source", {}).get("name", ""),
+                        "url": article.get("url", ""),
+                        "image_url": article.get("urlToImage", ""),
+                        "published_at": article.get("publishedAt", ""),
+                        "is_headline": True,
+                        "category": category or "general"
+                    })
+                return headlines
+            else:
+                raise Exception(f"API返回错误: {response.get('message', '未知错误')}")
+
+        except Exception as e:
+            self.logger.error(f"获取头条新闻失败: {str(e)}")
+            raise e
+
+    async def _fetch_sources(self, country: str, category: str, language: str) -> List[Dict[str, Any]]:
+        """获取新闻源"""
+        try:
+            from newsapi import NewsApiClient
+            newsapi = NewsApiClient(api_key=self.news_api_key)
+
+            params = {}
+            if country:
+                params["country"] = country
+            if category:
+                params["category"] = category
+            if language:
+                params["language"] = language
+
+            response = newsapi.get_sources(**params)
+
+            if response["status"] == "ok":
+                sources = []
+                for source in response.get("sources", []):
+                    sources.append({
+                        "id": source.get("id", ""),
+                        "name": source.get("name", ""),
+                        "description": source.get("description", ""),
+                        "url": source.get("url", ""),
+                        "category": source.get("category", ""),
+                        "language": source.get("language", ""),
+                        "country": source.get("country", "")
+                    })
+                return sources
+            else:
+                raise Exception(f"API返回错误: {response.get('message', '未知错误')}")
+
+        except Exception as e:
+            self.logger.error(f"获取新闻源失败: {str(e)}")
+            raise e
+
+    def _get_mock_news(self, count: int) -> List[Dict[str, Any]]:
+        """获取模拟新闻"""
+        mock_articles = [
+            {
+                "title": "AI技术在医疗领域取得重大突破",
+                "description": "最新研究显示，人工智能在疾病诊断方面准确率超过人类医生",
+                "content": "研究人员开发的新型AI系统在多项医疗诊断任务中表现出色...",
+                "author": "科技日报",
+                "source": "科技新闻",
+                "url": "https://example.com/news/1",
+                "image_url": "https://example.com/images/news1.jpg",
+                "published_at": (datetime.now() - timedelta(hours=2)).isoformat(),
+                "category": "technology"
+            },
+            {
+                "title": "全球气候变化会议达成重要协议",
+                "description": "195个国家就减排目标达成共识，承诺到2030年减少碳排放",
+                "content": "在为期两周的激烈谈判后，与会国家终于就关键议题达成一致...",
+                "author": "环保新闻",
+                "source": "环球时报",
+                "url": "https://example.com/news/2",
+                "image_url": "https://example.com/images/news2.jpg",
+                "published_at": (datetime.now() - timedelta(hours=4)).isoformat(),
+                "category": "environment"
+            },
+            {
+                "title": "新能源汽车销量创历史新高",
+                "description": "电动汽车市场份额首次超过传统燃油车",
+                "content": "最新数据显示，新能源汽车在全球汽车销量中的占比达到了51%...",
+                "author": "汽车周刊",
+                "source": "财经新闻",
+                "url": "https://example.com/news/3",
+                "image_url": "https://example.com/images/news3.jpg",
+                "published_at": (datetime.now() - timedelta(hours=6)).isoformat(),
+                "category": "business"
             }
-            news_list.append(news_item)
+        ]
+        return mock_articles[:count]
 
+    def _search_mock_news(self, query: str, count: int) -> List[Dict[str, Any]]:
+        """模拟搜索新闻"""
+        # 简单的关键词匹配
+        mock_results = self._get_mock_news(count)
+        query_lower = query.lower()
+
+        filtered_results = []
+        for article in mock_results:
+            if any(word in article["title"].lower() or word in article["description"].lower()
+                   for word in query_lower.split()):
+                article_copy = article.copy()
+                article_copy["relevance_score"] = 0.8  # 模拟相关性得分
+                filtered_results.append(article_copy)
+
+        return filtered_results[:count]
+
+    def _get_mock_headlines(self, page_size: int) -> List[Dict[str, Any]]:
+        """获取模拟头条"""
+        headlines = self._get_mock_news(page_size)
+        for headline in headlines:
+            headline["is_headline"] = True
+        return headlines
+
+    def _get_mock_sources(self) -> List[Dict[str, Any]]:
+        """获取模拟新闻源"""
+        return [
+            {
+                "id": "tech-news",
+                "name": "科技新闻",
+                "description": "最新的科技资讯和创新报道",
+                "url": "https://technews.example.com",
+                "category": "technology",
+                "language": "zh",
+                "country": "cn"
+            },
+            {
+                "id": "global-times",
+                "name": "环球时报",
+                "description": "国际新闻和时事分析",
+                "url": "https://global.example.com",
+                "category": "general",
+                "language": "zh",
+                "country": "cn"
+            }
+        ]
+
+    def _calculate_relevance(self, query: str, article: Dict[str, Any]) -> float:
+        """计算新闻与查询的相关性"""
+        query_words = query.lower().split()
+        title_words = article.get("title", "").lower().split()
+        description_words = article.get("description", "").lower().split()
+
+        title_matches = sum(1 for word in query_words if word in title_words)
+        description_matches = sum(1 for word in query_words if word in description_words)
+
+        total_words = len(query_words)
+        if total_words == 0:
+            return 0.0
+
+        # 简单的相关性计算
+        relevance = (title_matches * 2 + description_matches) / (total_words * 3)
+        return min(relevance, 1.0)
+
+    def get_capabilities(self) -> List[str]:
+        """获取工具能力列表"""
+        return [
+            "get_news",
+            "search_news",
+            "get_headlines",
+            "get_sources"
+        ]
+
+    def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
         return {
-            "success": True,
-            "news": news_list,
-            "count": len(news_list),
-            "source": "mock_data"
+            "actions": {
+                "get_news": {
+                    "description": "获取最新新闻",
+                    "parameters": {
+                        "count": {"type": "integer", "default": 10, "description": "新闻数量"},
+                        "country": {"type": "string", "default": "us", "description": "国家代码"},
+                        "category": {"type": "string", "description": "新闻类别"},
+                        "language": {"type": "string", "description": "语言代码"}
+                    }
+                },
+                "search_news": {
+                    "description": "搜索新闻",
+                    "parameters": {
+                        "query": {"type": "string", "required": True, "description": "搜索关键词"},
+                        "count": {"type": "integer", "default": 10, "description": "结果数量"},
+                        "language": {"type": "string", "default": "en", "description": "语言代码"},
+                        "sort_by": {"type": "string", "default": "publishedAt", "description": "排序方式"}
+                    }
+                },
+                "get_headlines": {
+                    "description": "获取头条新闻",
+                    "parameters": {
+                        "country": {"type": "string", "default": "us", "description": "国家代码"},
+                        "category": {"type": "string", "description": "新闻类别"},
+                        "page_size": {"type": "integer", "default": 10, "description": "页面大小"}
+                    }
+                },
+                "get_sources": {
+                    "description": "获取新闻源列表",
+                    "parameters": {
+                        "country": {"type": "string", "description": "国家代码"},
+                        "category": {"type": "string", "description": "新闻类别"},
+                        "language": {"type": "string", "description": "语言代码"}
+                    }
+                }
+            }
         }
 
-    async def _analyze_search_query(self, query: str) -> Dict[str, Any]:
-        """分析搜索查询意图"""
+    async def _perform_health_check(self) -> bool:
+        """执行健康检查"""
+        try:
+            # 检查API密钥是否配置
+            if not self.news_api_key:
+                self.logger.warning("新闻API密钥未配置，将使用模拟数据")
 
-        # 模拟智能分析
-        analysis = {
-            "intent": "information_retrieval",
-            "keywords": query.split(),
-            "entities": [],
-            "sentiment": "neutral",
-            "language": "zh"
-        }
+            # 测试基本功能
+            test_result = await self._get_news({"count": 1})
+            return test_result.success
+        except Exception as e:
+            self.logger.error(f"新闻工具健康检查失败: {str(e)}")
+            return False
 
-        # 简单的关键词提取
-        if "AI" in query or "人工智能" in query:
-            analysis["keywords"].append("AI")
-            analysis["entities"].append("人工智能")
-
-        if "经济" in query or "股市" in query:
-            analysis["keywords"].append("经济")
-            analysis["entities"].append("经济新闻")
-
-        return analysis
-
-    async def _generate_relevant_news(self, query: str, analysis: Dict[str, Any], count: int) -> List[Dict[str, Any]]:
-        """生成相关新闻"""
-
-        # 基于分析结果生成相关新闻
-        keywords = analysis.get("keywords", [])
-
-        relevant_news = []
-        for i in range(min(count, 5)):
-            news_item = {
-                "id": f"relevant_{i}",
-                "title": f"关于{query}的最新动态 #{i+1}",
-                "description": f"根据您的搜索'{query}'，我们找到了相关的最新信息...",
-                "source": "智能搜索",
-                "published_at": time.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                "url": f"https://example.com/search?q={query}&id={i}",
-                "relevance_score": 0.9 - (i * 0.1)
-            }
-            relevant_news.append(news_item)
-
-        return relevant_news
-
-    async def _generate_intelligent_summary(self, news_list: List[Dict[str, Any]], summary_type: str, max_length: int) -> str:
-        """生成智能摘要"""
-
-        if summary_type == "brief":
-            # 简要摘要
-            titles = [news.get("title", "") for news in news_list[:5]]
-            return f"今日重要新闻摘要：{'; '.join(titles[:3])}等{len(news_list)}条新闻。"
-
-        elif summary_type == "detailed":
-            # 详细摘要
-            summary_lines = [
-                f"共收集到{len(news_list)}条新闻",
-                "主要涵盖以下领域："
-            ]
-
-            # 简单分类
-            categories = {}
-            for news in news_list:
-                title = news.get("title", "")
-                if "AI" in title or "技术" in title:
-                    categories["科技"] = categories.get("科技", 0) + 1
-                elif "经济" in title or "股市" in title:
-                    categories["经济"] = categories.get("经济", 0) + 1
-                elif "环境" in title or "环保" in title:
-                    categories["环境"] = categories.get("环境", 0) + 1
-
-            for category, count in categories.items():
-                summary_lines.append(f"- {category}类新闻{count}条")
-
-            return "\\n".join(summary_lines)
-
-        else:
-            # 默认摘要
-            return f"新闻摘要：共{len(news_list)}条新闻，涵盖多个领域的重要动态。"
-
-    async def _apply_intelligent_filters(self, news_list: List[Dict[str, Any]], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """应用智能过滤器"""
-
-        filtered_news = news_list.copy()
-
-        # 关键词过滤
-        keywords = filters.get("keywords", [])
-        if keywords:
-            filtered_news = [
-                news for news in filtered_news
-                if any(keyword.lower() in news.get("title", "").lower()
-                       for keyword in keywords)
-            ]
-
-        # 来源过滤
-        sources = filters.get("sources", [])
-        if sources:
-            filtered_news = [
-                news for news in filtered_news
-                if news.get("source") in sources
-            ]
-
-        # 时间过滤（这里简化处理）
-        time_range = filters.get("time_range")
-        if time_range:
-            # 实际应用中应该解析时间并过滤
-            pass
-
-        return filtered_news
-
-    async def _perform_trend_analysis(self, news_list: List[Dict[str, Any]], analysis_type: str) -> Dict[str, Any]:
-        """执行趋势分析"""
-
-        if analysis_type == "topics":
-            # 主题分析
-            topics = {}
-            for news in news_list:
-                title = news.get("title", "")
-                if "AI" in title or "人工智能" in title:
-                    topics["人工智能"] = topics.get("人工智能", 0) + 1
-                if "经济" in title or "股市" in title:
-                    topics["经济金融"] = topics.get("经济金融", 0) + 1
-                if "环境" in title or "环保" in title:
-                    topics["环境保护"] = topics.get("环境保护", 0) + 1
-
-            return {
-                "analysis_type": "topic_analysis",
-                "top_topics": sorted(topics.items(), key=lambda x: x[1], reverse=True)[:5],
-                "total_topics": len(topics)
-            }
-
-        elif analysis_type == "sentiment":
-            # 情感分析
-            positive_count = sum(1 for news in news_list if "突破" in news.get("title", "") or "成功" in news.get("title", ""))
-            negative_count = sum(1 for news in news_list if "危机" in news.get("title", "") or "失败" in news.get("title", ""))
-
-            return {
-                "analysis_type": "sentiment_analysis",
-                "positive": positive_count,
-                "negative": negative_count,
-                "neutral": len(news_list) - positive_count - negative_count
-            }
-
-        else:
-            return {
-                "analysis_type": analysis_type,
-                "message": "分析类型不支持"
-            }
-
-    async def _generate_news_report(self, news_list: List[Dict[str, Any]], report_type: str, time_range: str, include_analysis: bool) -> Dict[str, Any]:
-        """生成新闻报告"""
-
-        report = {
-            "title": f"{time_range}新闻报告",
-            "generated_time": time.strftime('%Y-%m-%d %H:%M:%S'),
-            "total_news": len(news_list),
-            "news_highlights": []
-        }
-
-        # 添加新闻亮点
-        for i, news in enumerate(news_list[:10], 1):
-            report["news_highlights"].append({
-                "rank": i,
-                "title": news.get("title", ""),
-                "source": news.get("source", ""),
-                "summary": news.get("description", "")[:100] + "..."
-            })
-
-        if include_analysis:
-            # 添加趋势分析
-            trend_analysis = await self._perform_trend_analysis(news_list, "topics")
-            report["trend_analysis"] = trend_analysis
-
-        return report
+# 创建全局新闻工具实例
+news_tool = NewsTool()

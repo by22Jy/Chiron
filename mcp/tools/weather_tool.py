@@ -1,37 +1,43 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-天气 MCP 工具
-
-通过DeepSeek大模型智能处理天气相关任务
+天气工具模块
+提供天气获取和智能分析功能
 """
 
+import os
 import asyncio
-import requests
-import json
-import time
-import re
+import aiohttp
 from typing import Dict, Any, List, Optional
-import logging
 from datetime import datetime, timedelta
+from .base_tool import BaseTool, ToolResponse, ToolError
 
-from ..config import TOOLS_CONFIG
-
-logger = logging.getLogger(__name__)
-
-
-class WeatherTool:
-    """天气工具"""
+class WeatherTool(BaseTool):
+    """天气工具类"""
 
     def __init__(self):
-        self.config = TOOLS_CONFIG["weather"]
-        self.cache = {}
-        self.cache_timeout = 1800  # 30分钟缓存
+        super().__init__(
+            name="weather",
+            description="获取天气信息并提供智能分析",
+            version="2.0.0"
+        )
 
-    async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        # 天气API配置
+        self.weather_api_key = os.getenv("WEATHER_API_KEY", "")
+        self.default_city = "Beijing"
+        self.default_units = "metric"
+        self.default_language = "zh_cn"
+        self.cache_ttl = 1800  # 30分钟缓存
+
+        # 支持的单位和语言
+        self.supported_units = ["metric", "imperial", "standard"]
+        self.supported_languages = {
+            "zh": "zh_cn", "en": "en", "es": "es", "fr": "fr",
+            "de": "de", "ja": "ja", "ko": "kr"
+        }
+
+    async def execute(self, action: str, parameters: Dict[str, Any]) -> ToolResponse:
         """执行天气工具操作"""
-
-        action = parameters.get("action", "")
-        logger.info(f"执行天气工具操作: {action}")
-
         try:
             if action == "get_current_weather":
                 return await self._get_current_weather(parameters)
@@ -43,638 +49,595 @@ class WeatherTool:
                 return await self._weather_recommendation(parameters)
             elif action == "compare_weather":
                 return await self._compare_weather(parameters)
-            elif action == "create_weather_report":
-                return await self._create_weather_report(parameters)
+            elif action == "get_weather_alerts":
+                return await self._get_weather_alerts(parameters)
             else:
-                return {
-                    "success": False,
-                    "error": f"未知的天气操作: {action}",
-                    "available_actions": [
-                        "get_current_weather", "get_forecast", "analyze_weather",
-                        "weather_recommendation", "compare_weather", "create_weather_report"
-                    ]
-                }
+                raise ToolError(f"不支持的操作: {action}", self.name)
 
         except Exception as e:
-            logger.error(f"天气工具执行错误: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "action": action
-            }
+            self.logger.error(f"天气工具执行失败: {action} - {str(e)}")
+            raise ToolError(f"天气工具执行异常: {str(e)}", self.name)
 
-    async def _get_current_weather(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _get_current_weather(self, params: Dict[str, Any]) -> ToolResponse:
         """获取当前天气"""
-
-        city = params.get("city", "Beijing")
-        units = params.get("units", "metric")
+        city = params.get("city", self.default_city)
+        units = params.get("units", self.default_units)
+        language = params.get("language", self.default_language)
 
         try:
-            # 检查缓存
-            cache_key = f"current_{city}_{units}"
-            if cache_key in self.cache:
-                cached_data = self.cache[cache_key]
-                if time.time() - cached_data["timestamp"] < self.cache_timeout:
-                    logger.info("使用缓存天气数据")
-                    return cached_data["data"]
-
-            # 尝试获取真实天气数据
-            weather_data = await self._fetch_real_weather(city, units)
-
-            if weather_data["success"]:
-                # 缓存数据
-                self.cache[cache_key] = {
-                    "timestamp": time.time(),
-                    "data": weather_data
-                }
-                return weather_data
+            if self.weather_api_key:
+                weather_data = await self._fetch_real_weather(city, units, language)
             else:
-                # 使用模拟天气数据
-                mock_weather = await self._generate_mock_weather(city)
-                return mock_weather
+                weather_data = self._get_mock_weather(city)
 
-        except Exception as e:
-            logger.error(f"获取天气失败: {str(e)}")
-            return await self._generate_mock_weather(city)
-
-    async def _get_forecast(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """获取天气预报"""
-
-        city = params.get("city", "Beijing")
-        days = params.get("days", 5)
-        units = params.get("units", "metric")
-
-        try:
-            # 生成天气预报（使用模拟数据，实际可以调用天气API的预报接口）
-            forecast_data = await self._generate_forecast_data(city, days, units)
-
-            return {
-                "success": True,
-                "city": city,
-                "forecast": forecast_data,
-                "days": days,
-                "units": units,
-                "generated_time": time.strftime('%Y-%m-%d %H:%M:%S')
-            }
-
-        except Exception as e:
-            logger.error(f"获取天气预报失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "city": city
-            }
-
-    async def _analyze_weather(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """分析天气情况"""
-
-        city = params.get("city", "Beijing")
-        weather_data = params.get("weather_data")
-
-        if not weather_data:
-            # 先获取天气数据
-            current_weather = await self._get_current_weather({"city": city})
-            if not current_weather["success"]:
-                return current_weather
-            weather_data = current_weather["weather"]
-
-        try:
-            # 使用DeepSeek进行天气分析
-            analysis = await self._perform_weather_analysis(weather_data, city)
-
-            return {
-                "success": True,
-                "city": city,
-                "analysis": analysis,
-                "weather_data": weather_data
-            }
-
-        except Exception as e:
-            logger.error(f"天气分析失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _weather_recommendation(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """天气建议"""
-
-        city = params.get("city", "Beijing")
-        activity_type = params.get("activity_type", "general")
-
-        try:
-            # 获取当前天气
-            current_weather = await self._get_current_weather({"city": city})
-            if not current_weather["success"]:
-                return current_weather
-
-            weather_data = current_weather["weather"]
-
-            # 基于天气和活动类型生成建议
-            recommendations = await self._generate_recommendations(weather_data, activity_type)
-
-            return {
-                "success": True,
-                "city": city,
-                "activity_type": activity_type,
-                "current_weather": weather_data,
-                "recommendations": recommendations
-            }
-
-        except Exception as e:
-            logger.error(f"生成天气建议失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _compare_weather(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """比较不同城市天气"""
-
-        cities = params.get("cities", ["Beijing", "Shanghai"])
-        metrics = params.get("metrics", ["temperature", "humidity", "condition"])
-
-        try:
-            comparison_data = []
-            for city in cities:
-                weather_data = await self._get_current_weather({"city": city})
-                if weather_data["success"]:
-                    comparison_data.append({
-                        "city": city,
-                        "weather": weather_data["weather"]
-                    })
-
-            # 生成比较分析
-            comparison_analysis = await self._perform_weather_comparison(comparison_data, metrics)
-
-            return {
-                "success": True,
-                "cities": cities,
-                "metrics": metrics,
-                "comparison_data": comparison_data,
-                "analysis": comparison_analysis
-            }
-
-        except Exception as e:
-            logger.error(f"天气比较失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _create_weather_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """创建天气报告"""
-
-        cities = params.get("cities", ["Beijing"])
-        report_type = params.get("report_type", "daily")
-        include_forecast = params.get("include_forecast", True)
-
-        try:
-            report_data = {
-                "title": f"{report_type.title()}天气报告",
-                "generated_time": time.strftime('%Y-%m-%d %H:%M:%S'),
-                "cities_weather": []
-            }
-
-            # 获取各城市天气
-            for city in cities:
-                current_weather = await self._get_current_weather({"city": city})
-                if current_weather["success"]:
-                    city_report = {
-                        "city": city,
-                        "current_weather": current_weather["weather"]
-                    }
-
-                    # 添加预报
-                    if include_forecast:
-                        forecast = await self._get_forecast({"city": city, "days": 3})
-                        if forecast["success"]:
-                            city_report["forecast"] = forecast["forecast"]
-
-                    report_data["cities_weather"].append(city_report)
-
-            # 生成报告摘要
-            summary = await self._generate_weather_summary(report_data["cities_weather"])
-            report_data["summary"] = summary
-
-            return {
-                "success": True,
-                "report": report_data,
-                "metadata": {
-                    "report_type": report_type,
-                    "cities_count": len(cities),
-                    "include_forecast": include_forecast
+            return ToolResponse(
+                success=True,
+                data={
+                    "current_weather": weather_data,
+                    "city": city,
+                    "units": units,
+                    "language": language,
+                    "source": "real_api" if self.weather_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
                 }
-            }
-
-        except Exception as e:
-            logger.error(f"创建天气报告失败: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    async def _fetch_real_weather(self, city: str, units: str) -> Dict[str, Any]:
-        """获取真实天气数据"""
-
-        api_key = self.config.get("api_key")
-        if not api_key:
-            return {"success": False, "error": "天气API密钥未配置"}
-
-        try:
-            # 构建请求参数
-            params = {
-                "q": city,
-                "appid": api_key,
-                "units": units,
-                "lang": self.config.get("lang", "zh_cn")
-            }
-
-            # 发送请求
-            response = requests.get(
-                f"{self.config['base_url']}/weather",
-                params=params,
-                timeout=10
             )
 
-            response.raise_for_status()
-            data = response.json()
+        except Exception as e:
+            self.logger.error(f"获取当前天气失败: {str(e)}")
+            raise ToolError(f"获取当前天气失败: {str(e)}", self.name)
 
-            # 解析天气数据
-            weather_info = {
-                "city": city,
-                "date": time.strftime('%Y年%m月%d日'),
-                "temperature": f"{round(data['main']['temp'])}°{'C' if units == 'metric' else 'F'}",
-                "feels_like": f"{round(data['main']['feels_like'])}°{'C' if units == 'metric' else 'F'}",
-                "condition": data['weather'][0]['description'].capitalize(),
-                "humidity": f"{data['main']['humidity']}%",
-                "pressure": f"{data['main']['pressure']} hPa",
-                "wind_speed": f"{data['wind'].get('speed', 0)} m/s",
-                "wind_direction": self._get_wind_direction(data['wind'].get('deg', 0)),
-                "visibility": f"{data.get('visibility', 0) / 1000:.1f} km",
-                "sunrise": time.strftime('%H:%M', time.localtime(data['sys']['sunrise'])),
-                "sunset": time.strftime('%H:%M', time.localtime(data['sys']['sunset'])),
-                "icon": data['weather'][0]['icon'],
-                "coordinates": {
-                    "lat": data['coord']['lat'],
-                    "lon": data['coord']['lon']
+    async def _get_forecast(self, params: Dict[str, Any]) -> ToolResponse:
+        """获取天气预报"""
+        city = params.get("city", self.default_city)
+        days = params.get("days", 5)
+        units = params.get("units", self.default_units)
+        language = params.get("language", self.default_language)
+
+        try:
+            if self.weather_api_key:
+                forecast_data = await self._fetch_real_forecast(city, days, units, language)
+            else:
+                forecast_data = self._get_mock_forecast(city, days)
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "forecast": forecast_data,
+                    "city": city,
+                    "days": days,
+                    "units": units,
+                    "language": language,
+                    "source": "real_api" if self.weather_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
                 }
-            }
-
-            return {
-                "success": True,
-                "weather": weather_info,
-                "source": "real_api"
-            }
+            )
 
         except Exception as e:
-            logger.error(f"获取真实天气失败: {str(e)}")
-            return {"success": False, "error": str(e)}
+            self.logger.error(f"获取天气预报失败: {str(e)}")
+            raise ToolError(f"获取天气预报失败: {str(e)}", self.name)
 
-    async def _generate_mock_weather(self, city: str) -> Dict[str, Any]:
-        """生成模拟天气数据"""
+    async def _analyze_weather(self, params: Dict[str, Any]) -> ToolResponse:
+        """分析天气数据"""
+        city = params.get("city", self.default_city)
+        weather_data = params.get("weather_data", None)
 
-        # 模拟不同城市的天气
-        city_weather_map = {
-            "Beijing": {
-                "temperature": "18°C",
-                "condition": "晴朗",
-                "humidity": "45%",
-                "wind_speed": "3.2 m/s"
-            },
-            "Shanghai": {
-                "temperature": "22°C",
-                "condition": "多云",
-                "humidity": "65%",
-                "wind_speed": "2.8 m/s"
-            },
-            "Guangzhou": {
-                "temperature": "28°C",
-                "condition": "小雨",
-                "humidity": "78%",
-                "wind_speed": "1.5 m/s"
-            },
-            "Shenzhen": {
-                "temperature": "26°C",
-                "condition": "阴天",
-                "humidity": "70%",
-                "wind_speed": "2.1 m/s"
+        try:
+            # 如果没有提供天气数据，先获取
+            if not weather_data:
+                current_weather_result = await self._get_current_weather({
+                    "city": city
+                })
+                if not current_weather_result.success:
+                    raise ToolError("无法获取天气数据", self.name)
+                weather_data = current_weather_result.data["current_weather"]
+
+            # 使用DeepSeek进行智能分析
+            analysis = await self._perform_weather_analysis(weather_data, city)
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "city": city,
+                    "weather_data": weather_data,
+                    "analysis": analysis,
+                    "analysis_time": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"天气分析失败: {str(e)}")
+            raise ToolError(f"天气分析失败: {str(e)}", self.name)
+
+    async def _weather_recommendation(self, params: Dict[str, Any]) -> ToolResponse:
+        """天气建议"""
+        city = params.get("city", self.default_city)
+        activity_type = params.get("activity_type", "general")
+        weather_data = params.get("weather_data", None)
+
+        try:
+            # 如果没有提供天气数据，先获取
+            if not weather_data:
+                current_weather_result = await self._get_current_weather({
+                    "city": city
+                })
+                if not current_weather_result.success:
+                    raise ToolError("无法获取天气数据", self.name)
+                weather_data = current_weather_result.data["current_weather"]
+
+            # 生成建议
+            recommendations = await self._generate_weather_recommendations(
+                weather_data, activity_type
+            )
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "city": city,
+                    "activity_type": activity_type,
+                    "weather_data": weather_data,
+                    "recommendations": recommendations,
+                    "recommendation_time": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"生成天气建议失败: {str(e)}")
+            raise ToolError(f"生成天气建议失败: {str(e)}", self.name)
+
+    async def _compare_weather(self, params: Dict[str, Any]) -> ToolResponse:
+        """比较多个城市的天气"""
+        cities = params.get("cities", [])
+        units = params.get("units", self.default_units)
+
+        if not cities:
+            raise ToolError("城市列表不能为空", self.name)
+
+        try:
+            weather_comparison = []
+            for city in cities:
+                try:
+                    city_weather_result = await self._get_current_weather({
+                        "city": city,
+                        "units": units
+                    })
+                    if city_weather_result.success:
+                        weather_comparison.append({
+                            "city": city,
+                            "weather": city_weather_result.data["current_weather"]
+                        })
+                except Exception as e:
+                    self.logger.error(f"获取{city}天气失败: {str(e)}")
+                    continue
+
+            # 生成比较分析
+            comparison_analysis = await self._analyze_weather_comparison(weather_comparison)
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "cities": cities,
+                    "weather_comparison": weather_comparison,
+                    "comparison_analysis": comparison_analysis,
+                    "units": units,
+                    "comparison_time": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"天气比较失败: {str(e)}")
+            raise ToolError(f"天气比较失败: {str(e)}", self.name)
+
+    async def _get_weather_alerts(self, params: Dict[str, Any]) -> ToolResponse:
+        """获取天气预警"""
+        city = params.get("city", self.default_city)
+        alert_types = params.get("alert_types", ["all"])
+
+        try:
+            if self.weather_api_key:
+                alerts_data = await self._fetch_real_alerts(city, alert_types)
+            else:
+                alerts_data = self._get_mock_alerts(city)
+
+            return ToolResponse(
+                success=True,
+                data={
+                    "city": city,
+                    "alerts": alerts_data,
+                    "alert_types": alert_types,
+                    "source": "real_api" if self.weather_api_key else "mock",
+                    "fetch_time": datetime.now().isoformat()
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"获取天气预警失败: {str(e)}")
+            raise ToolError(f"获取天气预警失败: {str(e)}", self.name)
+
+    async def _fetch_real_weather(self, city: str, units: str, language: str) -> Dict[str, Any]:
+        """从真实API获取天气"""
+        try:
+            url = f"http://api.openweathermap.org/data/2.5/weather"
+            params = {
+                "q": city,
+                "appid": self.weather_api_key,
+                "units": units,
+                "lang": language
             }
-        }
 
-        default_weather = {
-            "temperature": "20°C",
-            "condition": "晴朗",
-            "humidity": "50%",
-            "wind_speed": "2.5 m/s"
-        }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {
+                            "temperature": data["main"]["temp"],
+                            "feels_like": data["main"]["feels_like"],
+                            "humidity": data["main"]["humidity"],
+                            "pressure": data["main"]["pressure"],
+                            "description": data["weather"][0]["description"],
+                            "wind_speed": data.get("wind", {}).get("speed", 0),
+                            "wind_direction": data.get("wind", {}).get("deg", 0),
+                            "visibility": data.get("visibility", 0) / 1000,  # 转换为公里
+                            "clouds": data.get("clouds", {}).get("all", 0),
+                            "sunrise": datetime.fromtimestamp(data["sys"]["sunrise"]).isoformat(),
+                            "sunset": datetime.fromtimestamp(data["sys"]["sunset"]).isoformat()
+                        }
+                    else:
+                        raise Exception(f"API请求失败: {response.status}")
 
-        weather_data = city_weather_map.get(city, default_weather)
+        except Exception as e:
+            self.logger.error(f"获取真实天气失败: {str(e)}")
+            raise e
 
-        mock_weather = {
-            "city": city,
-            "date": time.strftime('%Y年%m月%d日'),
-            "temperature": weather_data["temperature"],
-            "feels_like": weather_data["temperature"],
-            "condition": weather_data["condition"],
-            "humidity": weather_data["humidity"],
-            "pressure": "1013 hPa",
-            "wind_speed": weather_data["wind_speed"],
-            "wind_direction": "东南风",
-            "visibility": "10 km",
-            "sunrise": "06:30",
-            "sunset": "18:45",
-            "icon": "01d",
-            "coordinates": {
-                "lat": 39.9042,
-                "lon": 116.4074
+    async def _fetch_real_forecast(self, city: str, days: int, units: str, language: str) -> List[Dict[str, Any]]:
+        """从真实API获取天气预报"""
+        try:
+            url = f"http://api.openweathermap.org/data/2.5/forecast"
+            params = {
+                "q": city,
+                "appid": self.weather_api_key,
+                "units": units,
+                "lang": language,
+                "cnt": days * 8  # 每天8个时间点（3小时间隔）
             }
-        }
 
-        return {
-            "success": True,
-            "weather": mock_weather,
-            "source": "mock_data"
-        }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        forecast_data = []
 
-    async def _generate_forecast_data(self, city: str, days: int, units: str) -> List[Dict[str, Any]]:
-        """生成预报数据"""
+                        for item in data["list"]:
+                            forecast_data.append({
+                                "datetime": item["dt_txt"],
+                                "temperature": item["main"]["temp"],
+                                "feels_like": item["main"]["feels_like"],
+                                "humidity": item["main"]["humidity"],
+                                "pressure": item["main"]["pressure"],
+                                "description": item["weather"][0]["description"],
+                                "wind_speed": item.get("wind", {}).get("speed", 0),
+                                "wind_direction": item.get("wind", {}).get("deg", 0),
+                                "clouds": item.get("clouds", {}).get("all", 0),
+                                "precipitation": item.get("rain", {}).get("3h", 0)
+                            })
 
-        forecast = []
-        base_temp = 20 if city == "Beijing" else 25
+                        return forecast_data
+                    else:
+                        raise Exception(f"API请求失败: {response.status}")
 
-        conditions = ["晴", "多云", "阴", "小雨", "晴转多云", "多云转晴"]
+        except Exception as e:
+            self.logger.error(f"获取真实天气预报失败: {str(e)}")
+            raise e
 
-        for i in range(days):
-            forecast_date = datetime.now() + timedelta(days=i+1)
-            temp_variation = (i % 3) * 2 - 2  # -2, 0, 2 的变化
-
-            day_forecast = {
-                "date": forecast_date.strftime('%Y-%m-%d'),
-                "day_of_week": forecast_date.strftime('%A'),
-                "temperature_max": f"{base_temp + temp_variation + 5}°{'C' if units == 'metric' else 'F'}",
-                "temperature_min": f"{base_temp + temp_variation - 2}°{'C' if units == 'metric' else 'F'}",
-                "condition": conditions[i % len(conditions)],
-                "humidity": f"{50 + (i % 3) * 10}%",
-                "wind_speed": f"{2 + (i % 2) * 1} m/s",
-                "precipitation": f"{i % 4 * 10}%",
-                "icon": f"{(i % 4) + 1:02d}d"
-            }
-            forecast.append(day_forecast)
-
-        return forecast
+    async def _fetch_real_alerts(self, city: str, alert_types: List[str]) -> List[Dict[str, Any]]:
+        """从真实API获取天气预警"""
+        # OpenWeatherMap需要One Call API 3.0才支持预警
+        # 这里先返回模拟数据
+        return self._get_mock_alerts(city)
 
     async def _perform_weather_analysis(self, weather_data: Dict[str, Any], city: str) -> Dict[str, Any]:
-        """使用DeepSeek执行智能天气分析"""
-
-        # 构建天气信息提示
-        weather_prompt = f"""
-请分析以下{city}的天气数据，并提供专业的天气分析：
+        """使用DeepSeek进行天气分析"""
+        try:
+            # 构建天气分析提示
+            weather_prompt = f"""请分析以下{city}的天气数据，并提供专业的天气分析：
 
 天气数据：
-- 温度: {weather_data.get('temperature', '')}
-- 天气状况: {weather_data.get('condition', '')}
-- 湿度: {weather_data.get('humidity', '')}
-- 风速: {weather_data.get('wind_speed', '')}
-- 体感温度: {weather_data.get('feels_like', '')}
+- 温度：{weather_data.get('temperature', 'N/A')}°C
+- 体感温度：{weather_data.get('feels_like', 'N/A')}°C
+- 湿度：{weather_data.get('humidity', 'N/A')}%
+- 气压：{weather_data.get('pressure', 'N/A')} hPa
+- 天气描述：{weather_data.get('description', 'N/A')}
+- 风速：{weather_data.get('wind_speed', 'N/A')} m/s
+- 能见度：{weather_data.get('visibility', 'N/A')} km
+- 云量：{weather_data.get('clouds', 'N/A')}%
 
-请提供以下格式的JSON分析结果：
-{{
-  "overall_rating": "天气整体评价（舒适/凉爽/寒冷/炎热等）",
-  "comfort_score": 数字评分（0-100），
-  "activity_suitability": ["适合的活动类型1", "适合的活动类型2"],
-  "clothing_suggestions": ["建议的衣物1", "建议的衣物2", "建议的衣物3"],
-  "health_advice": ["健康建议1", "健康建议2"],
-  "special_notes": ["特殊提醒1", "特殊提醒2"],
-  "detailed_analysis": "详细的天气分析和建议说明"
-}}
+请从以下几个方面进行分析：
+1. 天气状况概述
+2. 舒适度评估
+3. 出行建议
+4. 健康影响
+5. 注意事项
 
-请基于实际天气数据进行智能分析，考虑人体舒适度、活动适宜性等因素。
-"""
+请以JSON格式返回分析结果，包含上述几个方面的内容。"""
 
-        try:
-            # 导入DeepSeek集成
-            from deepseek_integration import deepseek_integration
+            # 尝试使用DeepSeek集成
+            try:
+                from ..deepseek_integration import deepseek_integration
+                from datetime import datetime
 
-            if not deepseek_integration:
-                # 如果DeepSeek不可用，使用基本分析作为后备
-                return await self._fallback_weather_analysis(weather_data, city)
+                messages = [
+                    {"role": "system", "content": "你是一个专业的天气分析师，请提供准确、实用的天气分析。"},
+                    {"role": "user", "content": weather_prompt}
+                ]
 
-            # 使用DeepSeek进行天气分析
-            messages = [
-                {"role": "system", "content": "你是一个专业的天气分析师，能够基于天气数据提供智能的生活建议。"},
-                {"role": "user", "content": weather_prompt}
-            ]
+                result = await deepseek_integration.chat_with_llm(messages)
 
-            result = await deepseek_integration.chat_with_llm(messages)
-
-            if result.get("success"):
-                analysis_text = result.get("response", "")
-
-                # 尝试解析JSON
-                try:
-                    # 提取JSON部分
-                    json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
-                    if json_match:
-                        analysis_data = json.loads(json_match.group(0))
-                        return analysis_data
-                    else:
-                        # 如果无法解析JSON，返回基本分析
-                        return {
-                            "overall_rating": "分析完成",
-                            "comfort_score": 75,
-                            "activity_suitability": ["室内外活动"],
-                            "clothing_suggestions": ["适合当前天气的衣物"],
-                            "health_advice": ["注意天气变化"],
-                            "special_notes": ["基于AI分析"],
-                            "detailed_analysis": analysis_text
+                if result.get("success"):
+                    # 尝试解析JSON结果
+                    import json
+                    try:
+                        analysis_data = json.loads(result["content"])
+                    except:
+                        # 如果解析失败，包装为标准格式
+                        analysis_data = {
+                            "overview": result["content"],
+                            "comfort": "暂无评估",
+                            "travel_advice": "暂无建议",
+                            "health_impact": "暂无分析",
+                            "precautions": "暂无提醒"
                         }
-                except json.JSONDecodeError:
+
                     return {
-                        "overall_rating": "分析完成",
-                        "comfort_score": 75,
-                        "activity_suitability": ["室内外活动"],
-                        "clothing_suggestions": ["适合当前天气的衣物"],
-                        "health_advice": ["注意天气变化"],
-                        "special_notes": ["基于AI分析"],
-                        "detailed_analysis": analysis_text
+                        "analysis_type": "ai_generated",
+                        "analysis_data": analysis_data,
+                        "analysis_time": datetime.now().isoformat(),
+                        "model": "deepseek"
                     }
-            else:
-                # DeepSeek调用失败，使用基本分析
-                return await self._fallback_weather_analysis(weather_data, city)
+                else:
+                    raise Exception("DeepSeek API调用失败")
+
+            except ImportError:
+                self.logger.warning("DeepSeek集成未找到，使用基础分析")
+                return self._basic_weather_analysis(weather_data)
 
         except Exception as e:
-            logger.error(f"DeepSeek天气分析失败: {str(e)}")
-            # 出错时使用基本分析作为后备
-            return await self._fallback_weather_analysis(weather_data, city)
+            self.logger.error(f"DeepSeek天气分析失败: {str(e)}")
+            return self._basic_weather_analysis(weather_data)
 
-    async def _fallback_weather_analysis(self, weather_data: Dict[str, Any], city: str) -> Dict[str, Any]:
-        """基本的天气分析（作为DeepSeek的后备方案）"""
+    def _basic_weather_analysis(self, weather_data: Dict[str, Any]) -> Dict[str, Any]:
+        """基础天气分析（备用方案）"""
+        temperature = weather_data.get("temperature", 0)
+        humidity = weather_data.get("humidity", 0)
+        description = weather_data.get("description", "")
 
-        temperature = weather_data.get("temperature", "")
-        condition = weather_data.get("condition", "")
-        humidity = weather_data.get("humidity", "")
+        # 基础分析逻辑
+        if temperature > 30:
+            comfort = "炎热，注意防暑降温"
+            travel_advice = "避免长时间户外活动，做好防晒"
+        elif temperature > 20:
+            comfort = "温暖舒适"
+            travel_advice = "适合出行"
+        elif temperature > 10:
+            comfort = "凉爽，建议添加衣物"
+            travel_advice = "适合户外活动"
+        else:
+            comfort = "寒冷，注意保暖"
+            travel_advice = "外出请穿戴保暖衣物"
 
-        analysis = {
-            "overall_rating": "舒适",
-            "comfort_score": 85,
-            "activity_suitability": [],
-            "clothing_suggestions": [],
-            "health_advice": [],
-            "special_notes": [],
-            "detailed_analysis": f"{city}使用基本规则分析"
+        return {
+            "analysis_type": "basic_rule_based",
+            "analysis_data": {
+                "overview": f"当前天气{description}，温度{temperature}°C",
+                "comfort": comfort,
+                "travel_advice": travel_advice,
+                "health_impact": "湿度{}%，请根据个人情况调整".format(humidity),
+                "precautions": "请关注天气变化，及时调整出行计划"
+            },
+            "analysis_time": datetime.now().isoformat(),
+            "model": "rule_based"
         }
 
-        # 温度分析（原有逻辑）
-        temp_num = 18
-        try:
-            temp_num = int(temperature.replace("°C", "").replace("°F", ""))
-        except:
-            pass
-
-        if temp_num < 10:
-            analysis["overall_rating"] = "寒冷"
-            analysis["comfort_score"] = 30
-            analysis["clothing_suggestions"] = ["厚外套", "围巾", "手套"]
-            analysis["health_advice"] = ["注意保暖", "避免长时间户外活动"]
-        elif temp_num < 20:
-            analysis["overall_rating"] = "凉爽"
-            analysis["comfort_score"] = 70
-            analysis["clothing_suggestions"] = ["薄外套", "长袖"]
-            analysis["activity_suitability"] = ["适合户外活动", "适合运动"]
-        elif temp_num < 30:
-            analysis["overall_rating"] = "舒适"
-            analysis["comfort_score"] = 90
-            analysis["clothing_suggestions"] = ["轻便衣物", "短袖"]
-            analysis["activity_suitability"] = ["各种户外活动", "运动健身"]
-        else:
-            analysis["overall_rating"] = "炎热"
-            analysis["comfort_score"] = 60
-            analysis["clothing_suggestions"] = ["轻薄衣物", "防晒用品"]
-            analysis["health_advice"] = ["注意防晒", "多补充水分"]
-            analysis["activity_suitability"] = ["室内活动", "水上活动"]
-
-        # 天气条件分析
-        if "雨" in condition:
-            analysis["special_notes"].append("有降雨，建议携带雨具")
-            analysis["clothing_suggestions"].append("防水外套")
-
-        if "晴" in condition:
-            analysis["special_notes"].append("天气晴朗，紫外线较强")
-            analysis["clothing_suggestions"].append("太阳镜", "防晒霜")
-
-        return analysis
-
-    async def _generate_recommendations(self, weather_data: Dict[str, Any], activity_type: str) -> List[str]:
+    async def _generate_weather_recommendations(self, weather_data: Dict[str, Any], activity_type: str) -> List[Dict[str, Any]]:
         """生成天气建议"""
+        temperature = weather_data.get("temperature", 0)
+        humidity = weather_data.get("humidity", 0)
+        description = weather_data.get("description", "")
+        wind_speed = weather_data.get("wind_speed", 0)
 
         recommendations = []
-        condition = weather_data.get("condition", "")
-        temperature = weather_data.get("temperature", "")
 
-        # 基于活动类型的建议
-        if activity_type == "outdoor":
-            if "雨" in condition:
-                recommendations.append("天气有雨，建议改期或选择室内活动")
-                recommendations.append("如需户外活动，请携带雨具")
-            else:
-                recommendations.append("天气适合户外活动")
-                recommendations.append("建议准备防晒用品")
+        # 通用建议
+        if "雨" in description:
+            recommendations.append({
+                "category": "出行",
+                "priority": "高",
+                "suggestion": "携带雨具，选择合适的交通方式"
+            })
 
-        elif activity_type == "exercise":
-            if int(temperature.replace("°C", "")) > 30:
-                recommendations.append("温度较高，建议早晨或傍晚运动")
-                recommendations.append("运动时注意补充水分")
-            elif int(temperature.replace("°C", "")) < 10:
-                recommendations.append("温度较低，建议选择室内运动")
-                recommendations.append("户外运动需充分热身")
-            else:
-                recommendations.append("温度适宜，适合各种运动")
+        if temperature > 35:
+            recommendations.append({
+                "category": "健康",
+                "priority": "高",
+                "suggestion": "避免长时间户外暴晒，多补充水分"
+            })
 
-        elif activity_type == "travel":
-            if "雨" in condition:
-                recommendations.append("有降雨，影响出行计划")
-                recommendations.append("建议携带雨具和防水装备")
-            else:
-                recommendations.append("天气良好，适合出行")
-                recommendations.append("建议关注目的地天气变化")
+        if temperature < 0:
+            recommendations.append({
+                "category": "保暖",
+                "priority": "高",
+                "suggestion": "穿戴保暖衣物，注意防寒"
+            })
 
-        else:
-            # 通用建议
-            recommendations.append("根据天气情况适当增减衣物")
-            if "晴" in condition:
-                recommendations.append("注意防晒")
+        # 活动特定建议
+        if activity_type == "outdoor_sports":
+            if wind_speed > 10:
+                recommendations.append({
+                    "category": "运动",
+                    "priority": "中",
+                    "suggestion": "风力较大，不建议户外剧烈运动"
+                })
+            elif 15 <= temperature <= 25:
+                recommendations.append({
+                    "category": "运动",
+                    "priority": "低",
+                    "suggestion": "天气适宜，是户外运动的好时机"
+                })
+
+        elif activity_type == "driving":
+            if "雨" in description or "雪" in description:
+                recommendations.append({
+                    "category": "驾驶",
+                    "priority": "高",
+                    "suggestion": "路面湿滑，请减速慢行，保持安全距离"
+                })
 
         return recommendations
 
-    async def _perform_weather_comparison(self, comparison_data: List[Dict[str, Any]], metrics: List[str]) -> Dict[str, Any]:
-        """执行天气比较"""
+    async def _analyze_weather_comparison(self, weather_comparison: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """分析天气比较"""
+        if len(weather_comparison) < 2:
+            return {"analysis": "需要至少两个城市的天气数据进行比较"}
 
-        if len(comparison_data) < 2:
-            return {"error": "需要至少两个城市的数据进行比较"}
+        # 找出最温暖和最凉爽的城市
+        temperatures = [(item["city"], item["weather"]["temperature"]) for item in weather_comparison]
+        warmest_city = max(temperatures, key=lambda x: x[1])
+        coolest_city = min(temperatures, key=lambda x: x[1])
 
-        comparison_results = {
-            "cities": [data["city"] for data in comparison_data],
-            "metrics_comparison": {},
-            "rankings": {},
-            "summary": ""
+        return {
+            "total_cities": len(weather_comparison),
+            "warmest_city": {"name": warmest_city[0], "temperature": warmest_city[1]},
+            "coolest_city": {"name": coolest_city[0], "temperature": coolest_city[1]},
+            "temperature_range": warmest_city[1] - coolest_city[1],
+            "recommendation": f"最温暖的城市是{warmest_city[0]}({warmest_city[1]}°C)，最凉爽的是{coolest_city[0]}({coolest_city[1]}°C)"
         }
 
-        # 比较各项指标
-        for metric in metrics:
-            metric_data = []
-            for city_data in comparison_data:
-                weather = city_data["weather"]
-                if metric == "temperature":
-                    temp = weather.get("temperature", "0°C").replace("°C", "")
-                    metric_data.append((city_data["city"], float(temp)))
-                elif metric == "humidity":
-                    humidity = weather.get("humidity", "0%").replace("%", "")
-                    metric_data.append((city_data["city"], float(humidity)))
-                else:
-                    metric_data.append((city_data["city"], 0))
-
-            # 排序
-            metric_data.sort(key=lambda x: x[1], reverse=(metric in ["temperature", "humidity"]))
-            comparison_results["metrics_comparison"][metric] = metric_data
-
-        return comparison_results
-
-    async def _generate_weather_summary(self, cities_weather: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """生成天气摘要"""
-
-        total_cities = len(cities_weather)
-        conditions_count = {}
-        avg_temperature = 0
-
-        for city_data in cities_weather:
-            weather = city_data["current_weather"]
-            condition = weather.get("condition", "")
-            temp_str = weather.get("temperature", "18°C").replace("°C", "")
-
-            # 统计天气条件
-            conditions_count[condition] = conditions_count.get(condition, 0) + 1
-
-            # 计算平均温度
-            try:
-                avg_temperature += float(temp_str)
-            except:
-                avg_temperature += 18
-
-        avg_temperature /= total_cities
-
-        summary = {
-            "total_cities": total_cities,
-            "average_temperature": f"{round(avg_temperature)}°C",
-            "most_common_condition": max(conditions_count.items(), key=lambda x: x[1])[0] if conditions_count else "未知",
-            "conditions_distribution": conditions_count,
-            "overall_assessment": "天气状况良好" if avg_temperature >= 15 and avg_temperature <= 25 else "天气需要关注"
+    def _get_mock_weather(self, city: str) -> Dict[str, Any]:
+        """获取模拟天气数据"""
+        return {
+            "temperature": 22,
+            "feels_like": 24,
+            "humidity": 65,
+            "pressure": 1013,
+            "description": "晴朗",
+            "wind_speed": 3.5,
+            "wind_direction": 180,
+            "visibility": 10,
+            "clouds": 20,
+            "sunrise": (datetime.now().replace(hour=6, minute=0, second=0)).isoformat(),
+            "sunset": (datetime.now().replace(hour=18, minute=30, second=0)).isoformat()
         }
 
-        return summary
+    def _get_mock_forecast(self, city: str, days: int) -> List[Dict[str, Any]]:
+        """获取模拟天气预报"""
+        forecast = []
+        base_temp = 20
 
-    def _get_wind_direction(self, degrees: int) -> str:
-        """获取风向描述"""
-        directions = ["北", "东北", "东", "东南", "南", "西南", "西", "西北"]
-        index = round(degrees / 45) % 8
-        return f"{directions[index]}风"
+        for day in range(days):
+            for hour in range(0, 24, 3):  # 每3小时一个数据点
+                forecast.append({
+                    "datetime": (datetime.now() + timedelta(days=day, hours=hour)).strftime("%Y-%m-%d %H:%M:%S"),
+                    "temperature": base_temp + (hour - 12) * 0.5 + day * 2,
+                    "feels_like": base_temp + (hour - 12) * 0.5 + day * 2 + 2,
+                    "humidity": 60 + (hour % 6) * 5,
+                    "pressure": 1013 + (hour % 4) * 2,
+                    "description": "晴朗" if hour < 12 else "多云",
+                    "wind_speed": 3 + (hour % 5),
+                    "wind_direction": (hour * 15) % 360,
+                    "clouds": 20 + (hour % 3) * 20,
+                    "precipitation": 0 if day % 2 == 0 else 0.5
+                })
+
+        return forecast[:days * 8]
+
+    def _get_mock_alerts(self, city: str) -> List[Dict[str, Any]]:
+        """获取模拟天气预警"""
+        return [
+            {
+                "alert_id": "mock_001",
+                "event": "高温预警",
+                "start": datetime.now().isoformat(),
+                "end": (datetime.now() + timedelta(days=2)).isoformat(),
+                "description": "未来两天将出现高温天气，请注意防暑降温",
+                "severity": "moderate"
+            }
+        ]
+
+    def get_capabilities(self) -> List[str]:
+        """获取工具能力列表"""
+        return [
+            "get_current_weather",
+            "get_forecast",
+            "analyze_weather",
+            "weather_recommendation",
+            "compare_weather",
+            "get_weather_alerts"
+        ]
+
+    def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
+        return {
+            "actions": {
+                "get_current_weather": {
+                    "description": "获取当前天气",
+                    "parameters": {
+                        "city": {"type": "string", "default": "Beijing", "description": "城市名称"},
+                        "units": {"type": "string", "default": "metric", "description": "温度单位"},
+                        "language": {"type": "string", "default": "zh_cn", "description": "语言代码"}
+                    }
+                },
+                "get_forecast": {
+                    "description": "获取天气预报",
+                    "parameters": {
+                        "city": {"type": "string", "default": "Beijing", "description": "城市名称"},
+                        "days": {"type": "integer", "default": 5, "description": "预报天数"},
+                        "units": {"type": "string", "default": "metric", "description": "温度单位"},
+                        "language": {"type": "string", "default": "zh_cn", "description": "语言代码"}
+                    }
+                },
+                "analyze_weather": {
+                    "description": "分析天气数据",
+                    "parameters": {
+                        "city": {"type": "string", "default": "Beijing", "description": "城市名称"},
+                        "weather_data": {"type": "object", "description": "天气数据（可选）"}
+                    }
+                },
+                "weather_recommendation": {
+                    "description": "获取天气建议",
+                    "parameters": {
+                        "city": {"type": "string", "default": "Beijing", "description": "城市名称"},
+                        "activity_type": {"type": "string", "default": "general", "description": "活动类型"},
+                        "weather_data": {"type": "object", "description": "天气数据（可选）"}
+                    }
+                },
+                "compare_weather": {
+                    "description": "比较多个城市天气",
+                    "parameters": {
+                        "cities": {"type": "array", "required": True, "description": "城市列表"},
+                        "units": {"type": "string", "default": "metric", "description": "温度单位"}
+                    }
+                },
+                "get_weather_alerts": {
+                    "description": "获取天气预警",
+                    "parameters": {
+                        "city": {"type": "string", "default": "Beijing", "description": "城市名称"},
+                        "alert_types": {"type": "array", "default": ["all"], "description": "预警类型"}
+                    }
+                }
+            }
+        }
+
+    async def _perform_health_check(self) -> bool:
+        """执行健康检查"""
+        try:
+            # 检查API密钥是否配置
+            if not self.weather_api_key:
+                self.logger.warning("天气API密钥未配置，将使用模拟数据")
+
+            # 测试基本功能
+            test_result = await self._get_current_weather({"city": "Beijing"})
+            return test_result.success
+        except Exception as e:
+            self.logger.error(f"天气工具健康检查失败: {str(e)}")
+            return False
+
+# 创建全局天气工具实例
+weather_tool = WeatherTool()

@@ -1,0 +1,105 @@
+# YOLO-LLM Sprint Status Report
+# Generated: 2025-12-14T13:00:00Z
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder
+#   - ready-for-dev: Draft approved, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done by *retrospective
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2025-12-14T13:00:00Z
+project: yolo-llm
+project_key: yolo-llm
+tracking_system: file-system
+story_location: "{project-root}/docs/sprint-artifacts"
+
+# 开发状态追踪
+development_status:
+  # Epic 1: 语音控制核心功能修复 (P0) - 基础稳定性修复
+  epic-1: in-progress
+  1-1-speech-recognition-stability: completed
+  1-2-intelligent-controller-json-parsing: done
+  1-3-mcp-tool-integration-error-handling: ready-for-dev
+  1-4-email-parameter-mapping: completed
+  1-5-mcp-server-startup: completed
+  1-6-data-flow-standardization: completed
+  1-7-session-consistency: ready-for-dev
+  1-8-error-propagation: ready-for-dev
+  1-9-service-discovery-health-check: ready-for-dev
+  1-10-email-client-integration: ready-for-dev
+  1-1-retrospective: optional
+
+  # Epic 1.5: 深层集成逻辑修复 (P0) - 高级集成问题
+  epic-1.5: backlog
+  1-11-llm-orchestration-loop-fix: ready-for-dev
+  1-12-multi-step-workflow-coordination: ready-for-dev
+  epic-1.5-retrospective: optional
+
+  # Epic 2: AI编排引擎增强 (P1) - 智能能力提升
+  epic-2: backlog
+  2-1-context-awareness-enhancement: backlog
+  2-2-command-feedback-mechanism-optimization: backlog
+  2-3-smart-app-recognition-enhancement: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: 工具集成稳定性提升 (P1) - 工具和服务稳定性
+  epic-3: backlog
+  3-1-ai-service-health-monitoring: backlog
+  3-2-mcp-tool-configurability-enhancement: backlog
+  3-3-startup-script-fault-tolerance: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: 新功能扩展 (P2) - 功能扩展
+  epic-4: backlog
+  4-1-voice-broadcast-functionality: backlog
+  4-2-custom-voice-command-training: backlog
+  4-3-gesture-recognition-enhancement: backlog
+  4-4-multi-language-support: backlog
+  epic-4-retrospective: optional
+
+# 质量指标
+quality_metrics:
+  code_coverage: target_80%
+  bug_fix_rate: 95%
+  integration_tests_passing: false
+
+# 当前冲刺目标
+sprint_goals:
+  - 完成所有P0关键Bug修复
+  - 实现稳定的agent-backend集成
+  - 确保邮件功能正常工作
+  - 建立完善的数据流标准化
+
+# 状态定义
+status_definitions:
+  - ready-for-dev: 准备开始开发
+  - in-progress: 正在开发中
+  - review: 等待代码审查
+  - testing: 测试阶段
+  - completed: 已完成
+  - blocked: 被阻塞
+
+# 当前重点
+current_focus: "数据流标准化修复 - 解决agent-backend通信格式不一致问题"
+
+# 下一个要开发的故事
+next_story: "1-6-data-flow-standardization"

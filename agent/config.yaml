@@ -1,8 +1,30 @@
-﻿backend:
+﻿# 标准化配置 - AC5: 配置同步机制
+# 统一的枚举值定义 (AC2)
+enumerations:
+  status_values: [success, error, processing]  # 小写状态枚举
+  action_types: [hotkey, mouse, click, scroll, text, window, system]  # 小写动作类型
+  gesture_names: [POINT_UP, THUMBS_UP, VICTORY, OK_SIGN, CLOSED_FIST, V_GESTURE, ROCK_SIGN]  # 大写下划线手势名
+
+# 数据格式标准 (AC1, AC3)
+data_format:
+  timestamp_format: "ISO_8601"  # 统一使用ISO 8601格式: 2025-12-13T12:00:00Z
+  response_structure:  # 标准响应结构
+    status: "success|error"
+    data: "{...}"
+    message: "string"
+    timestamp: "ISO_8601"
+
+backend:
   base_url: 'http://127.0.0.1:8080'
   username: 'admin'
   application: 'chrome.exe'
   os: 'windows'
+  # 配置同步设置
+  sync:
+    enabled: true
+    poll_interval: 60  # 秒
+    validate_format: true
+    hot_reload: true
 
 agent:
   source: 'python-agent@dev'
@@ -10,9 +32,9 @@ agent:
 
 video:
   camera_id: 0         # 摄像头设备ID (尝试0或1，0通常是默认摄像头)
-  width: 640          # 视频宽度
-  height: 480         # 视频高度
-  fps: 30             # 帧率
+  width: 1280          # 视频宽度
+  height: 960         # 视频高度
+  fps: 60             # 帧率
   show_preview: true  # 是否显示预览窗口
   flip_horizontal: true  # 水平翻转摄像头图像
   detection_interval: 0.1  # 手势检测间隔(秒)

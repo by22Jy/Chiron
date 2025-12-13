@@ -26,6 +26,7 @@ try:
     from tts_engine import TTSEngine, TTSConfig, VoiceFeedback
     from visual_feedback import VisualFeedback, VisualFeedbackConfig, AgentState, FeedbackLevel
     from safety_confirmation import SafetyConfirmationManager, request_action_confirmation, handle_confirmation_gesture
+    from intelligent_controller import IntelligentController
     AI_FEATURES_AVAILABLE = True
 except ImportError as e:
     print(f'Warning: AI features not available: {e}')
@@ -832,12 +833,13 @@ def main():
     parser.add_argument('--event', help='Send an eventType to /api/event')
     parser.add_argument('--actions', action='store_true', help='List supported action types')
     parser.add_argument('--voice', action='store_true', help='Enable voice control')
+    parser.add_argument('--text', action='store_true', help='Enable text-based intelligent control')
     parser.add_argument('--analyze-gesture', help='Analyze gesture intent (gesture_code)')
     parser.add_argument('--chat', help='Chat with AI assistant')
     args = parser.parse_args()
-    
+
     # Default to realtime if no mode specified
-    if not any([args.sync, args.watch, args.realtime, args.daemon, args.gesture, args.event, args.actions, args.voice, args.analyze_gesture, args.chat]):
+    if not any([args.sync, args.watch, args.realtime, args.daemon, args.gesture, args.event, args.actions, args.voice, args.text, args.analyze_gesture, args.chat]):
         args.realtime = True
     
     cfg = load_config(Path(args.config))
@@ -875,6 +877,82 @@ def main():
                     time.sleep(1)
             except KeyboardInterrupt:
                 logger.info('Stopping voice control...')
+
+        if args.text:
+            if not AI_FEATURES_AVAILABLE:
+                logger.error('AI features not available')
+                sys.exit(1)
+
+            print(f"\n文字智能控制模式 - 输入您的指令")
+            print(f"支持的指令类型:")
+            print(f"  - 打开应用: '打开记事本', '启动Chrome'")
+            print(f"  - 系统控制: '调高音量', '降低亮度'")
+            print(f"  - 文件操作: '打开我的文档', '显示下载文件夹'")
+            print(f"  - 网页搜索: '搜索Python教程', '百度天气'")
+            print(f"  - 自定义命令: '打开命令提示符', '运行ipconfig'")
+            print(f"输入 '退出' 或 'exit' 来结束文字控制模式\n")
+
+            # 初始化智能控制器
+            try:
+                controller = IntelligentController(backend_url=agent.config.base_url)
+                logger.info('智能控制器初始化成功')
+            except Exception as e:
+                logger.error(f'智能控制器初始化失败: {e}')
+                sys.exit(1)
+
+            try:
+                while True:
+                    try:
+                        user_input = input("请输入您的指令: ").strip()
+
+                        if not user_input:
+                            continue
+
+                        # 检查退出命令
+                        if user_input.lower() in ['退出', 'exit', 'quit', 'q']:
+                            print("退出文字控制模式")
+                            break
+
+                        print(f"\n处理指令: {user_input}")
+                        print("正在分析您的请求...")
+
+                        # 使用智能控制器处理指令
+                        result = controller.process_natural_language(user_input)
+
+                        if result.get('success'):
+                            action_info = result.get('action', {})
+                            print(f"指令执行成功!")
+                            print(f"   操作类型: {action_info.get('type', 'unknown')}")
+                            print(f"   操作描述: {action_info.get('description', '无描述')}")
+                            print(f"   置信度: {action_info.get('confidence', 0):.2f}")
+                            print(f"   安全级别: {action_info.get('safety_level', 'unknown')}")
+                            print(f"   处理时间: {result.get('processing_time', 0):.2f}秒")
+
+                            # 显示备选方案
+                            alternatives = result.get('alternatives', [])
+                            if alternatives:
+                                print(f"   备选方案: {', '.join(alternatives)}")
+                        else:
+                            print(f"指令执行失败!")
+                            print(f"   错误信息: {result.get('error', '未知错误')}")
+                            if result.get('raw_response'):
+                                print(f"   原始响应: {result['raw_response'][:100]}...")
+
+                        print("-" * 50)
+
+                    except EOFError:
+                        print("\n检测到输入结束，退出文字控制模式")
+                        break
+                    except KeyboardInterrupt:
+                        print("\n\n用户中断，退出文字控制模式")
+                        break
+                    except Exception as e:
+                        print(f"处理指令时发生错误: {e}")
+                        logger.error(f"Text control error: {e}")
+
+            except Exception as e:
+                logger.error(f'Text control mode failed: {e}')
+                print(f"文字控制模式出现错误: {e}")
 
         if args.analyze_gesture:
             if not AI_FEATURES_AVAILABLE:
@@ -929,7 +1007,7 @@ def main():
                 logger.error(f"Chat failed: {e}")
                 print(f"AI: 对话服务出现错误")
 
-        if args.watch or (not args.sync and not args.gesture and not args.event and not args.realtime and not args.daemon and not args.voice and not args.analyze_gesture and not args.chat):
+        if args.watch or (not args.sync and not args.gesture and not args.event and not args.realtime and not args.daemon and not args.voice and not args.text and not args.analyze_gesture and not args.chat):
             interactive_loop(agent)
         elif args.realtime:
             # Start with both gesture detection and voice control

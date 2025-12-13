@@ -12,6 +12,9 @@ from dataclasses import dataclass
 import json
 import requests
 
+# 导入数据标准化工具
+from utils.data_standardizer import DataStandardizer
+
 try:
     import speech_recognition as sr
 except ImportError:
@@ -58,6 +61,7 @@ class VoiceController:
 
     def __init__(self, backend_url: str = "http://127.0.0.1:8080", enable_intelligent_control: bool = True):
         self.backend_url = backend_url
+        self.data_standardizer = DataStandardizer()
         self.recognizer = sr.Recognizer()
         self.microphone = None
         self.is_listening = False
@@ -540,15 +544,24 @@ class VoiceController:
         query = params.get("query", "")
 
         try:
+            # 使用标准化工具创建请求
+            request_data = {
+                "query": query,
+                "context": "用户询问关于手势的问题"
+            }
+            standard_request = self.data_standardizer.create_standard_request("gesture-analysis", request_data)
+
             # 调用后端LLM接口进行分析
             response = requests.post(
                 f"{self.backend_url}/api/llm/gesture-analysis",
-                json={"query": query, "context": "用户询问关于手势的问题"},
+                json=standard_request,
                 timeout=10
             )
 
             if response.status_code == 200:
-                result = response.json()
+                response_data = response.json()
+                # 使用标准化工具解析响应
+                result = self.data_standardizer.parse_standard_response(response_data)
                 logger.info(f"🤖 手势分析结果: {result.get('response', '无响应')}")
             else:
                 logger.warning(f"手势分析请求失败: {response.status_code}")

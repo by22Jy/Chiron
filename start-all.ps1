@@ -1,8 +1,7 @@
-# YOLO-LLM 统一启动脚本 - 启动所有服务
-# Unified YOLO-LLM Startup Script - Launch All Services
-# Usage: 右键运行，或在终端执行: powershell -ExecutionPolicy Bypass -File .\start-all.ps1
+# YOLO-LLM Unified Startup Script - Launch All Services
+# Usage: Right-click to run, or execute in terminal: powershell -ExecutionPolicy Bypass -File .\start-all.ps1
 
-# 设置编码为UTF-8
+# Set encoding to UTF-8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
@@ -10,29 +9,29 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# 初始化日志系统
-Write-Host "`n=== 初始化日志系统 ===" -ForegroundColor Cyan
+# Initialize logging system
+Write-Host "`n=== Initialize Logging System ===" -ForegroundColor Cyan
 $logsDir = Join-Path $root "logs"
 if (-not (Test-Path $logsDir)) {
     New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
 }
 
-# 创建会话目录
+# Create session directory
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $sessionDir = Join-Path $logsDir "session_$timestamp"
 New-Item -ItemType Directory -Path $sessionDir -Force | Out-Null
 
-# 创建各模块日志目录
+# Create module log directories
 $modules = @("backend", "ai_service", "mcp", "agent", "frontend")
 foreach ($module in $modules) {
     $moduleDir = Join-Path $sessionDir $module
     New-Item -ItemType Directory -Path $moduleDir -Force | Out-Null
 }
 
-Write-Host "[日志] 会话目录创建: $sessionDir" -ForegroundColor Green
+Write-Host "[LOG] Session directory created: $sessionDir" -ForegroundColor Green
 $global:logDir = $sessionDir
 
-# 创建会话信息文件
+# Create session info file
 $sessionInfo = @{
     session_id = Split-Path $sessionDir -Leaf
     start_time = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
@@ -47,25 +46,25 @@ $sessionInfo = @{
 }
 $sessionInfo | ConvertTo-Json -Depth 3 | Out-File -FilePath (Join-Path $sessionDir "session_info.json") -Encoding UTF8
 
-# 设置环境变量
+# Set environment variables
 $env:DB_URL = "jdbc:mysql://127.0.0.1:3306/yolo_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC"
 $env:DB_USER = "root"
 $env:DB_PASS = "Wangjiayi1"
 
-# 设置LLM API Keys
+# Set LLM API Keys
 $env:KIMI_API_KEY = $env:KIMI_API_KEY
 $env:QWEN_API_KEY = $env:QWEN_API_KEY
 
-# 设置MCP工具API Keys
+# Set MCP tool API Keys
 $env:NEWS_API_KEY = $env:NEWS_API_KEY
 $env:WEATHER_API_KEY = $env:WEATHER_API_KEY
 $env:BREVO_API_KEY = $env:BREVO_API_KEY
 
-# 设置MCP服务器URL
+# Set MCP server URL
 $env:MCP_SERVER_URL = "http://localhost:8083"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "      YOLO-LLM 智能控制系统启动" -ForegroundColor Cyan
+Write-Host "      YOLO-LLM Intelligent Control System" -ForegroundColor Cyan
 Write-Host "    AI-Powered Gesture & Voice Control" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
@@ -74,7 +73,7 @@ function Test-DevelopmentEnvironment {
 
     $envReady = $true
 
-    # 检查Python
+    # Check Python
     try {
         $pythonVersion = python --version 2>&1
         Write-Host "[OK] Python: $pythonVersion" -ForegroundColor Green
@@ -83,7 +82,7 @@ function Test-DevelopmentEnvironment {
         $envReady = $false
     }
 
-    # 检查Java（允许Maven wrapper）
+    # Check Java (allow Maven wrapper)
     try {
         $javaVersion = java -version 2>&1
         Write-Host "[OK] Java: Available" -ForegroundColor Green
@@ -91,7 +90,7 @@ function Test-DevelopmentEnvironment {
         Write-Host "[WARN] Java not in PATH, checking Maven wrapper..." -ForegroundColor Yellow
     }
 
-    # 检查Maven
+    # Check Maven
     $beDir = Join-Path $root 'backend'
     if (Test-Path (Join-Path $beDir 'mvnw')) {
         Write-Host "[OK] Maven wrapper found" -ForegroundColor Green
@@ -102,7 +101,7 @@ function Test-DevelopmentEnvironment {
         $envReady = $false
     }
 
-    # 检查Node.js
+    # Check Node.js
     try {
         $nodeVersion = node --version
         Write-Host "[OK] Node.js: $nodeVersion" -ForegroundColor Green
@@ -143,7 +142,7 @@ function Start-MCPServer {
         throw "MCP directory not found: $mcpDir"
     }
 
-    # 检查API Keys
+    # Check API Keys
     $hasValidKeys = $false
     if ($env:NEWS_API_KEY) {
         Write-Host "[OK] NEWS_API_KEY configured" -ForegroundColor Green
@@ -184,7 +183,7 @@ function Start-MCPServer {
     }
 
     Write-Host "[INFO] Starting Enhanced MCP Server..." -ForegroundColor Yellow
-    Write-Host "[日志] MCP日志将保存到: $global:logDir\mcp\" -ForegroundColor Cyan
+    Write-Host "[LOG] MCP logs will be saved to: $global:logDir\mcp\" -ForegroundColor Cyan
 
     $mcpLogFile = Join-Path $global:logDir "mcp\mcp_server.log"
     $cmd = "& `"$venvPython`" main.py 2>&1 | Out-File -FilePath `"$mcpLogFile`" -Encoding UTF8 -Append"
@@ -216,7 +215,7 @@ function Start-AIService {
     }
 
     Write-Host "[INFO] Starting AI FastAPI service..." -ForegroundColor Yellow
-    Write-Host "[日志] AI服务日志将保存到: $global:logDir\ai_service\" -ForegroundColor Cyan
+    Write-Host "[LOG] AI service logs will be saved to: $global:logDir\ai_service\" -ForegroundColor Cyan
 
     $aiLogFile = Join-Path $global:logDir "ai_service\fastapi.log"
     $cmd = "& `"$uvicornExe`" main:app --host 127.0.0.1 --port 8000 --reload 2>&1 | Out-File -FilePath `"$aiLogFile`" -Encoding UTF8 -Append"
@@ -233,7 +232,7 @@ function Start-Backend {
         throw "Backend directory not found: $beDir"
     }
 
-    # API Key检查
+    # API Key check
     $hasValidKey = $false
     if ($env:DEEPSEEK_API_KEY -and $env:DEEPSEEK_API_KEY -ne "your_deepseek_api_key_here") {
         $hasValidKey = $true
@@ -258,7 +257,7 @@ function Start-Backend {
         Write-Host "  Get free API key: https://platform.deepseek.com" -ForegroundColor Yellow
     }
 
-    # 优先使用Maven wrapper
+    # Prefer Maven wrapper
     if (Test-Path (Join-Path $beDir 'mvnw')) {
         $cmd = '.\mvnw spring-boot:run'
         Write-Host "[INFO] Using Maven wrapper" -ForegroundColor Green
@@ -267,7 +266,7 @@ function Start-Backend {
         Write-Host "[INFO] Using system Maven" -ForegroundColor Green
     }
 
-    Write-Host "[日志] 后端日志将保存到: $global:logDir\backend\" -ForegroundColor Cyan
+    Write-Host "[LOG] Backend logs will be saved to: $global:logDir\backend\" -ForegroundColor Cyan
 
     $backendLogFile = Join-Path $global:logDir "backend\spring-boot.log"
     $psArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$beDir`"; $cmd 2>&1 | Out-File -FilePath `"$backendLogFile`" -Encoding UTF8 -Append")
@@ -283,7 +282,7 @@ function Start-Frontend {
         throw "Frontend directory not found: $feDir"
     }
 
-    Write-Host "[日志] 前端日志将保存到: $global:logDir\frontend\" -ForegroundColor Cyan
+    Write-Host "[LOG] Frontend logs will be saved to: $global:logDir\frontend\" -ForegroundColor Cyan
 
     $frontendLogFile = Join-Path $global:logDir "frontend\frontend.log"
     if (-not (Test-Path (Join-Path $feDir 'node_modules'))) {
@@ -301,7 +300,7 @@ function Start-Frontend {
 }
 
 function Start-Agent {
-    Write-Host "`n=== Agent Service starting (Gesture + Voice Control) ===" -ForegroundColor Cyan
+    Write-Host "`n=== Agent Service Selection ===" -ForegroundColor Cyan
     $agentDir = Join-Path $root 'agent'
     if (-not (Test-Path $agentDir)) {
         Write-Host "[SKIP] Agent directory not found, skipping Agent startup" -ForegroundColor Red
@@ -316,52 +315,173 @@ function Start-Agent {
         & python -m venv (Join-Path $agentDir '.venv')
         Write-Host "[INFO] Installing Agent dependencies (first time only)..." -ForegroundColor Blue
         & $venvPip install -r (Join-Path $agentDir 'requirements.txt') | Out-Null
+
+        # Also install intelligent controller dependencies
+        Write-Host "[INFO] Installing intelligent controller dependencies..." -ForegroundColor Blue
+        & $venvPip install requests psutil | Out-Null
     } else {
         Write-Host "[OK] Agent virtual environment ready" -ForegroundColor Green
-    }
 
-    Write-Host "[日志] Agent日志将保存到: $global:logDir\agent\" -ForegroundColor Cyan
-
-    $agentLogFile = Join-Path $global:logDir "agent\agent.log"
-
-    # 分离启动：先摄像头，后语音
-    Write-Host "[INFO] Step 1: Starting gesture recognition camera..." -ForegroundColor Yellow
-    $cameraCmd = "& `"$venvPython`" main.py --realtime 2>&1 | Out-File -FilePath `"$agentLogFile`" -Encoding UTF8 -Append"
-    try {
-        $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$agentDir`"; $cameraCmd")
-        Start-Process powershell -ArgumentList $psArgs -WindowStyle Normal -ErrorAction Stop | Out-Null
-        Write-Host "[SUCCESS] Camera gesture recognition started" -ForegroundColor Green
-        Write-Host "  Look for window: 'YOLO-LLM Agent - Gesture Detection'" -ForegroundColor Cyan
-    } catch {
-        Write-Host "[ERROR] Camera startup failed: $($_.Exception.Message)" -ForegroundColor Red
-        return
-    }
-
-    # 等待摄像头初始化
-    Write-Host "[INFO] Waiting for camera initialization..." -ForegroundColor Yellow
-    for ($i = 8; $i -gt 0; $i--) {
-        Write-Host -NoNewLine "`r  Starting voice in $i seconds... "
-        Start-Sleep -Seconds 1
-    }
-    Write-Host "`r[SUCCESS] Camera ready!                              " -ForegroundColor Green
-
-    # 启动语音控制
-    Write-Host "[INFO] Step 2: Starting voice control..." -ForegroundColor Yellow
-    $voiceLogFile = Join-Path $global:logDir "agent\voice.log"
-    $voiceCmd = "& `"$venvPython`" main.py --voice 2>&1 | Out-File -FilePath `"$voiceLogFile`" -Encoding UTF8 -Append"
-    try {
-        $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$agentDir`"; $voiceCmd")
-        Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized -ErrorAction Stop | Out-Null
-        Write-Host "[SUCCESS] Voice control started (background)" -ForegroundColor Green
-    } catch {
-        Write-Host "[WARN] Voice control startup failed, but camera still works" -ForegroundColor Yellow
+        # Ensure intelligent controller dependencies are available
+        Write-Host "[INFO] Checking intelligent controller dependencies..." -ForegroundColor Blue
+        & $venvPython -c "import requests, psutil; print('OK')" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[INFO] Installing missing intelligent controller dependencies..." -ForegroundColor Blue
+            & $venvPip install requests psutil | Out-Null
+        } else {
+            Write-Host "[OK] Intelligent controller dependencies available" -ForegroundColor Green
+        }
     }
 
     Write-Host ""
-    Write-Host "Agent Status:" -ForegroundColor White
-    Write-Host "  Camera: Running in separate window" -ForegroundColor Green
-    Write-Host "  Voice: Running in background process" -ForegroundColor Green
-    Write-Host "  Tip: Check taskbar if camera window not visible" -ForegroundColor Cyan
+    Write-Host "Choose Agent Mode to Auto-Start:" -ForegroundColor White
+    Write-Host "1. Camera + Voice Control (Traditional)" -ForegroundColor Gray
+    Write-Host "2. Text-Based Intelligent Control (NEW - Recommended for Testing)" -ForegroundColor Green
+    Write-Host "3. No Auto-Start (Manual selection)" -ForegroundColor Yellow
+    Write-Host ""
+    $choice = Read-Host "Please select mode (1/2/3)"
+
+    Write-Host "[LOG] Agent logs will be saved to: $global:logDir\agent\" -ForegroundColor Cyan
+
+    if ($choice -eq "1") {
+        # Traditional camera+voice mode
+        $agentLogFile = Join-Path $global:logDir "agent\agent.log"
+
+        Write-Host "[INFO] Step 1: Starting gesture recognition camera..." -ForegroundColor Yellow
+        $cameraCmd = "& `"$venvPython`" main.py --realtime 2>&1 | Out-File -FilePath `"$agentLogFile`" -Encoding UTF8 -Append"
+        try {
+            $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$agentDir`"; $cameraCmd")
+            Start-Process powershell -ArgumentList $psArgs -WindowStyle Normal -ErrorAction Stop | Out-Null
+            Write-Host "[SUCCESS] Camera gesture recognition started" -ForegroundColor Green
+            Write-Host "  Look for window: 'YOLO-LLM Agent - Gesture Detection'" -ForegroundColor Cyan
+        } catch {
+            Write-Host "[ERROR] Camera startup failed: $($_.Exception.Message)" -ForegroundColor Red
+            return
+        }
+
+        # Wait for camera initialization
+        Write-Host "[INFO] Waiting for camera initialization..." -ForegroundColor Yellow
+        for ($i = 8; $i -gt 0; $i--) {
+            Write-Host -NoNewLine "`r  Starting voice in $i seconds... "
+            Start-Sleep -Seconds 1
+        }
+        Write-Host "`r[SUCCESS] Camera ready!                              " -ForegroundColor Green
+
+        # Start voice control
+        Write-Host "[INFO] Step 2: Starting voice control..." -ForegroundColor Yellow
+        $voiceLogFile = Join-Path $global:logDir "agent\voice.log"
+        $voiceCmd = "& `"$venvPython`" main.py --voice 2>&1 | Out-File -FilePath `"$voiceLogFile`" -Encoding UTF8 -Append"
+        try {
+            $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location `"$agentDir`"; $voiceCmd")
+            Start-Process powershell -ArgumentList $psArgs -WindowStyle Minimized -ErrorAction Stop | Out-Null
+            Write-Host "[SUCCESS] Voice control started (background)" -ForegroundColor Green
+        } catch {
+            Write-Host "[WARN] Voice control startup failed, but camera still works" -ForegroundColor Yellow
+        }
+
+        Write-Host ""
+        Write-Host "Agent Status:" -ForegroundColor White
+        Write-Host "  Camera: Running in separate window" -ForegroundColor Green
+        Write-Host "  Voice: Running in background process" -ForegroundColor Green
+        Write-Host "  Tip: Check taskbar if camera window not visible" -ForegroundColor Cyan
+
+    } elseif ($choice -eq "2") {
+        # Text-based intelligent control mode
+        Write-Host "[INFO] Starting Text-Based Intelligent Control..." -ForegroundColor Yellow
+
+        # Check intelligent controller dependencies
+        Write-Host "[INFO] Checking intelligent controller dependencies..." -ForegroundColor Blue
+        try {
+            # Create a temporary test script file
+            $testScript = @"
+from intelligent_controller import IntelligentController
+print('Intelligent Controller available')
+"@
+            $tempFile = Join-Path $env:TEMP "test_controller.py"
+            $testScript | Out-File -FilePath $tempFile -Encoding UTF8
+
+            # Run the test script
+            $testResult = & $venvPython $tempFile 2>&1
+            Remove-Item $tempFile -ErrorAction SilentlyContinue
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "[OK] Intelligent Controller available" -ForegroundColor Green
+            } else {
+                Write-Host "[ERROR] Intelligent Controller test failed with exit code $LASTEXITCODE" -ForegroundColor Red
+                Write-Host "[ERROR] Error output: $testResult" -ForegroundColor Red
+                Write-Host "[INFO] Installing missing dependencies (requests, psutil)..." -ForegroundColor Yellow
+
+                # Install dependencies
+                $installResult = & $venvPip install requests psutil 2>&1
+                Write-Host "[INFO] Installation result: $installResult" -ForegroundColor Blue
+
+                # Test again after installation
+                Write-Host "[INFO] Testing again after dependency installation..." -ForegroundColor Blue
+                $testScript | Out-File -FilePath $tempFile -Encoding UTF8
+                $testResult2 = & $venvPython $tempFile 2>&1
+                Remove-Item $tempFile -ErrorAction SilentlyContinue
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] Dependencies installed successfully" -ForegroundColor Green
+                } else {
+                    Write-Host "[ERROR] Still failing after installation: $testResult2" -ForegroundColor Red
+                }
+            }
+        } catch {
+            Write-Host "[ERROR] Exception during intelligent controller check: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "[INFO] Attempting to install dependencies anyway..." -ForegroundColor Yellow
+            try {
+                $installResult = & $venvPip install requests psutil 2>&1
+                Write-Host "[INFO] Installation result: $installResult" -ForegroundColor Blue
+            } catch {
+                Write-Host "[ERROR] Failed to install dependencies: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+
+        Write-Host "[INFO] Text Control Features:" -ForegroundColor Cyan
+        Write-Host "  - Open Apps: 'Open notepad', 'Start Chrome'" -ForegroundColor Gray
+        Write-Host "  - System Control: 'Increase volume', 'Decrease brightness'" -ForegroundColor Gray
+        Write-Host "  - File Operations: 'Open My Documents', 'Show Downloads folder'" -ForegroundColor Gray
+        Write-Host "  - Web Search: 'Search Python tutorials', 'Baidu weather'" -ForegroundColor Gray
+        Write-Host "  - Custom Commands: 'Open command prompt', 'Run ipconfig'" -ForegroundColor Gray
+        Write-Host "  Exit: Type 'exit', 'quit' or 'q'" -ForegroundColor Gray
+
+        # Check backend service status
+        try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/actuator/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) {
+                Write-Host "[OK] Backend service running" -ForegroundColor Green
+            } else {
+                Write-Host "[WARN] Backend service may not be ready" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "[WARN] Backend service not detected, text control may not work properly" -ForegroundColor Yellow
+            Write-Host "  Make sure backend is running: http://127.0.0.1:8080" -ForegroundColor Gray
+        }
+
+        $textLogFile = Join-Path $global:logDir "agent\text_control.log"
+        $textCmd = "& `"$venvPython`" main.py --text 2>&1 | Out-File -FilePath '$textLogFile' -Encoding UTF8 -Append"
+
+        try {
+            $psArgs = @("-NoProfile", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "Set-Location '$agentDir'; $textCmd")
+            Start-Process powershell -ArgumentList $psArgs -WindowStyle Normal -ErrorAction Stop | Out-Null
+            Write-Host "[SUCCESS] Text-Based Intelligent Control started" -ForegroundColor Green
+            Write-Host "  Look for window: 'Text Control - Input your commands'" -ForegroundColor Cyan
+            Write-Host "  This is the NEW text-based control interface" -ForegroundColor Green
+        } catch {
+            Write-Host "[ERROR] Text control startup failed: $($_.Exception.Message)" -ForegroundColor Red
+        }
+
+    } else {
+        # No auto-start
+        Write-Host "[INFO] Agent not auto-started" -ForegroundColor Yellow
+        Write-Host "Manual startup options:" -ForegroundColor White
+        Write-Host "  - Camera + Voice: & `"$venvPython`" main.py --realtime" -ForegroundColor Gray
+        Write-Host "  - Text Control: & `"$venvPython`" main.py --text" -ForegroundColor Green
+        Write-Host "  - Voice Only: & `"$venvPython`" main.py --voice" -ForegroundColor Gray
+        Write-Host "  - Gesture Analysis: & `"$venvPython`" main.py --analyze-gesture THUMBS_UP" -ForegroundColor Gray
+        Write-Host "  - Chat Mode: & `"$venvPython`" main.py --chat 'hello'" -ForegroundColor Gray
+    }
 }
 
 function Test-ServiceHealth {
@@ -393,11 +513,11 @@ function Test-ServiceHealth {
     return $allHealthy
 }
 
-# 主要启动流程
+# Main startup flow
 try {
     Write-Host "`nStarting YOLO-LLM system..." -ForegroundColor Cyan
 
-    # 环境检测
+    # Environment check
     if (-not (Test-DevelopmentEnvironment)) {
         Write-Host "`n[ERROR] Environment check failed, please install missing dependencies" -ForegroundColor Red
         Write-Host "Press any key to exit..." -ForegroundColor Yellow
@@ -405,17 +525,17 @@ try {
         exit 1
     }
 
-    # 数据库连接测试
+    # Database connection test
     Test-MySQLConnection
 
-    # 按顺序启动服务
+    # Start services in order
     Start-MCPServer
     Start-Backend
     Start-AIService
     Start-Frontend
     Start-Agent
 
-    # 等待服务启动并检查状态
+    # Wait for services to start and check status
     Write-Host "`nWaiting for services to fully start..." -ForegroundColor Cyan
     Start-Sleep -Seconds 8
     Test-ServiceHealth
@@ -433,12 +553,14 @@ try {
     Write-Host "- Health Check: http://localhost:8083/health" -ForegroundColor White
     Write-Host ""
     Write-Host "Agent Status:" -ForegroundColor Cyan
-    Write-Host "  Camera gesture recognition: Running in separate window" -ForegroundColor Green
-    Write-Host "  Voice control: Listening in background" -ForegroundColor Green
+    Write-Host "  - Camera + Voice: Traditional gesture and voice control" -ForegroundColor Green
+    Write-Host "  - Text Control: NEW keyboard-based intelligent control" -ForegroundColor Green
+    Write-Host "  - Choose mode during startup for different control options" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Usage Tips:" -ForegroundColor Yellow
     Write-Host "  • Camera window shows real-time gesture recognition" -ForegroundColor Gray
     Write-Host "  • Voice control supports Chinese commands" -ForegroundColor Gray
+    Write-Host "  • Text Control: Type commands like 'Open notepad', 'Increase volume'" -ForegroundColor Gray
     Write-Host "  • Use .\stop-all.ps1 to stop all services" -ForegroundColor Gray
     Write-Host ""
 

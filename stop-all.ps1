@@ -1,5 +1,10 @@
-# Stop YOLO-LLM dev servers by process/port (enhanced version)
+# Stop YOLO-LLM All Services (Enhanced Version)
 # Usage: powershell -ExecutionPolicy Bypass -File .\stop-all.ps1
+
+# Set encoding to UTF-8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
 
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -7,13 +12,13 @@ Write-Host '========================================' -ForegroundColor Cyan
 Write-Host "    Stop YOLO-LLM All Services" -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 
-Write-Host "`nStopping development services..." -ForegroundColor Yellow
+Write-Host "`nStopping YOLO-LLM services..." -ForegroundColor Yellow
 
-# 停止Agent Python进程 - 使用多种方法确保停止
-Write-Host "Stopping Agent (Gesture Control)..." -ForegroundColor Blue
+# Stop Agent Python processes - use multiple methods to ensure complete stop
+Write-Host "Stopping Agent Services..." -ForegroundColor Blue
 $agentStopped = $false
 
-# 方法1: 通过命令行匹配
+# Method 1: Command line matching
 $agentProcesses = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match 'agent.*main\.py' }
 if ($agentProcesses) {
@@ -25,7 +30,7 @@ if ($agentProcesses) {
     $agentStopped = $true
 }
 
-# 方法2: 通过窗口标题匹配
+# Method 2: Window title matching
 $psAgentWindows = Get-Process powershell -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowTitle -match 'agent|main\.py|python.*agent' -or $_.ProcessName -eq 'python' }
 if ($psAgentWindows) {
@@ -41,7 +46,7 @@ if ($psAgentWindows) {
     $agentStopped = $true
 }
 
-# 方法3: 直接查找Python进程
+# Method 3: Direct Python process search
 $pythonAgentProcesses = Get-Process python -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowTitle -match 'agent|YOLO-LLM|main\.py' }
 if ($pythonAgentProcesses) {
@@ -54,77 +59,164 @@ if ($pythonAgentProcesses) {
 }
 
 if ($agentStopped) {
-    Write-Host "+ Agent stopped" -ForegroundColor Green
+    Write-Host "[OK] Agent services stopped" -ForegroundColor Green
 } else {
-    Write-Host "! No Agent processes found" -ForegroundColor Yellow
+    Write-Host "[INFO] No Agent processes found" -ForegroundColor Yellow
 }
 
-# 停止uvicorn进程 (AI服务)
+# Stop uvicorn processes (AI Service)
+$aiStopped = $false
 $uvicornProcesses = Get-Process -Name uvicorn -ErrorAction SilentlyContinue
 if ($uvicornProcesses) {
-    Write-Host "Stopping AI Service (uvicorn)..." -ForegroundColor Blue
-    $uvicornProcesses | Stop-Process -Force
-    Write-Host "+ AI Service stopped" -ForegroundColor Green
+    Write-Host "Stopping AI Service (FastAPI)..." -ForegroundColor Blue
+    $uvicornProcesses | ForEach-Object {
+        Write-Host "Stopping AI Service PID: $($_.Id)" -ForegroundColor Blue
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    }
+    $aiStopped = $true
 }
 
-# 停止Java进程 (Backend)
+# Also stop Python processes running AI service
+$pythonAIProcesses = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'uvicorn.*main:app' }
+if ($pythonAIProcesses) {
+    Write-Host "Found AI Service via command line..." -ForegroundColor Blue
+    $pythonAIProcesses | ForEach-Object {
+        Write-Host "Stopping AI Service PID: $($_.ProcessId)" -ForegroundColor Blue
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    $aiStopped = $true
+}
+
+if ($aiStopped) {
+    Write-Host "[OK] AI Service stopped" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] No AI Service processes found" -ForegroundColor Yellow
+}
+
+# Stop Java processes (Backend)
+$backendStopped = $false
 $javaProcesses = Get-Process -Name java -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'spring-boot' -or $_.CommandLine -match 'spring-boot' }
 if ($javaProcesses) {
     Write-Host "Stopping Backend Service (Spring Boot)..." -ForegroundColor Blue
-    $javaProcesses | Stop-Process -Force
-    Write-Host "+ Backend Service stopped" -ForegroundColor Green
+    $javaProcesses | ForEach-Object {
+        Write-Host "Stopping Backend PID: $($_.Id)" -ForegroundColor Blue
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    }
+    $backendStopped = $true
 }
 
-# 停止Node进程 (Frontend)
+# Also check Maven processes
+$mavenProcesses = Get-Process -Name mvn -ErrorAction SilentlyContinue
+if ($mavenProcesses) {
+    Write-Host "Stopping Maven processes..." -ForegroundColor Blue
+    $mavenProcesses | ForEach-Object {
+        Write-Host "Stopping Maven PID: $($_.Id)" -ForegroundColor Blue
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    }
+    $backendStopped = $true
+}
+
+if ($backendStopped) {
+    Write-Host "[OK] Backend Service stopped" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] No Backend Service processes found" -ForegroundColor Yellow
+}
+
+# Stop Node processes (Frontend)
+$frontendStopped = $false
 $nodeProcesses = Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match 'vite|npm run dev' }
 if ($nodeProcesses) {
     Write-Host "Stopping Frontend Service (Node.js)..." -ForegroundColor Blue
-    $nodeProcesses | Stop-Process -Force
-    Write-Host "+ Frontend Service stopped" -ForegroundColor Green
+    $nodeProcesses | ForEach-Object {
+        Write-Host "Stopping Frontend PID: $($_.Id)" -ForegroundColor Blue
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    }
+    $frontendStopped = $true
 }
 
-# 停止相关的PowerShell窗口 - 更精确的匹配
+if ($frontendStopped) {
+    Write-Host "[OK] Frontend Service stopped" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] No Frontend Service processes found" -ForegroundColor Yellow
+}
+
+# Stop related PowerShell windows - more precise matching
 Write-Host "Stopping related PowerShell windows..." -ForegroundColor Blue
 $psProcesses = Get-Process -Name powershell -ErrorAction SilentlyContinue |
     Where-Object {
-        $_.MainWindowTitle -match 'mvn spring-boot:run|npm run dev|uvicorn|agent.*main\.py' -or
-        $_.MainWindowTitle -match 'backend|ai\\|frontend\\|agent\\' -or
-        $_.MainWindowTitle -eq 'Administrator: ' -and $_.CommandLine -match 'start-all\.ps1'
+        $_.MainWindowTitle -match 'mvn spring-boot:run|npm run dev|uvicorn|agent.*main\.py|start-all\.ps1' -or
+        $_.MainWindowTitle -match 'backend|ai\\|frontend\\|agent\\|YOLO-LLM' -or
+        $_.MainWindowTitle -match 'Text Control|Gesture Detection'
     }
 if ($psProcesses) {
     Write-Host "Found PowerShell windows to close..." -ForegroundColor Blue
     $psProcesses | ForEach-Object {
         Write-Host "Closing: $($_.MainWindowTitle)" -ForegroundColor Blue
-        # 先尝试优雅关闭
+        # Try graceful close first
         $_.CloseMainWindow() | Out-Null
         Start-Sleep -Seconds 1
-        # 如果还在运行就强制关闭
+        # Force close if still running
         if (!$_.HasExited) {
             Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
         }
     }
-    Write-Host "+ PowerShell windows closed" -ForegroundColor Green
+    Write-Host "[OK] PowerShell windows closed" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] No related PowerShell windows found" -ForegroundColor Yellow
+}
+
+# Stop MCP Server Python processes
+$mcpStopped = $false
+$mcpProcesses = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'mcp.*main\.py' }
+if ($mcpProcesses) {
+    Write-Host "Stopping MCP Server..." -ForegroundColor Blue
+    $mcpProcesses | ForEach-Object {
+        Write-Host "Stopping MCP Server PID: $($_.ProcessId)" -ForegroundColor Blue
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    $mcpStopped = $true
+}
+
+if ($mcpStopped) {
+    Write-Host "[OK] MCP Server stopped" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] No MCP Server processes found" -ForegroundColor Yellow
 }
 
 Write-Host "`n========================================" -ForegroundColor Green
-Write-Host "       所有服务已停止" -ForegroundColor Green
+Write-Host "       All Services Stopped Successfully!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
-# 额外检查端口占用
-Write-Host "检查端口占用情况..." -ForegroundColor Yellow
-$ports = @(8000, 8080, 5173, 8083)
+# Additional port occupation check
+Write-Host "Checking port occupation status..." -ForegroundColor Yellow
+$ports = @(8000, 8080, 8083, 5173)
+$allPortsFree = $true
 foreach ($port in $ports) {
     try {
         $connection = New-Object System.Net.Sockets.TcpClient
         $connection.Connect("127.0.0.1", $port)
         if ($connection.Connected) {
-            Write-Host "  端口 $port 仍被占用" -ForegroundColor Yellow
+            Write-Host "[WARN] Port $port still occupied" -ForegroundColor Yellow
+            $allPortsFree = $false
         }
         $connection.Close()
     } catch {
-        Write-Host "✅ 端口 $port 已释放" -ForegroundColor Green
+        Write-Host "[OK] Port $port released" -ForegroundColor Green
     }
 }
 
-Write-Host "`n停止完成！" -ForegroundColor Green
+if ($allPortsFree) {
+    Write-Host "`n[SUCCESS] All ports released successfully!" -ForegroundColor Green
+} else {
+    Write-Host "`n[INFO] Some ports may still be in use. You can manually check:" -ForegroundColor Yellow
+    Write-Host "  - Port 8000: AI Service (FastAPI)" -ForegroundColor Gray
+    Write-Host "  - Port 8080: Backend Service (Spring Boot)" -ForegroundColor Gray
+    Write-Host "  - Port 8083: MCP Server" -ForegroundColor Gray
+    Write-Host "  - Port 5173: Frontend Service (Vue.js)" -ForegroundColor Gray
+}
+
+Write-Host "`nStop operation completed!" -ForegroundColor Green
+Write-Host "You can now restart services with: .\start-all.ps1" -ForegroundColor Cyan

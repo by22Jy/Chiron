@@ -10,10 +10,21 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
 
-from ..tools.news_tool import news_tool
-from ..tools.weather_tool import weather_tool
-from ..tools.email_tool import email_tool
-from ..tools.filesystem_tool import filesystem_tool
+# 修改为绝对导入以解决相对导入问题
+try:
+    from ..tools.news_tool import news_tool
+    from ..tools.weather_tool import weather_tool
+    from ..tools.email_tool import email_tool
+    from ..tools.filesystem_tool import filesystem_tool
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    from tools.news_tool import news_tool
+    from tools.weather_tool import weather_tool
+    from tools.email_tool import email_tool
+    from tools.filesystem_tool import filesystem_tool
 
 logger = logging.getLogger(__name__)
 

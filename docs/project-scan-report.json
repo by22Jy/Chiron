@@ -1,0 +1,46 @@
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2025-12-13T12:00:00Z",
+    "last_updated": "2025-12-13T12:10:00Z"
+  },
+  "mode": "full_rescan",
+  "scan_level": "exhaustive",
+  "project_root": "D:\\yolo-llm",
+  "output_folder": "D:\\yolo-llm\\docs",
+  "completed_steps": [
+    {"step": "step_1", "status": "completed", "timestamp": "2025-12-13T12:10:00Z", "summary": "Classified as monorepo with 4 parts"},
+    {"step": "step_2", "status": "completed", "timestamp": "2025-12-13T12:20:00Z", "summary": "Found 13 existing docs and project overview"},
+    {"step": "step_3", "status": "completed", "timestamp": "2025-12-13T12:25:00Z", "summary": "Tech stack: Vue3+SpringBoot+FastAPI+Python Agent"},
+    {"step": "step_4", "status": "completed", "timestamp": "2025-12-13T12:30:00Z", "summary": "Conditional analysis complete: API contracts, data models, UI components generated"},
+    {"step": "step_5", "status": "completed", "timestamp": "2025-12-13T12:35:00Z", "summary": "Source tree documented with 4 critical folders"},
+    {"step": "step_6", "status": "completed", "timestamp": "2025-12-13T12:40:00Z", "summary": "Dev/deployment guides written with startup scripts"},
+    {"step": "step_7", "status": "completed", "timestamp": "2025-12-13T12:45:00Z", "summary": "Integration architecture documented with 4 services communication"},
+    {"step": "step_8", "status": "completed", "timestamp": "2025-12-13T12:50:00Z", "summary": "Architecture docs written for 4 parts"},
+    {"step": "step_9", "status": "completed", "timestamp": "2025-12-13T12:55:00Z", "summary": "All supporting docs written: project-overview, development-guide, source-tree-analysis"},
+    {"step": "step_10", "status": "completed", "timestamp": "2025-12-13T13:00:00Z", "summary": "Master index generated as primary AI retrieval source"}
+  ],
+  "current_step": "completed",
+  "findings": {
+    "project_classification": {
+      "repository_type": "monorepo",
+      "parts_count": 4
+    }
+  },
+  "project_types": [
+    {"part_id": "frontend", "project_type_id": "web", "display_name": "Web Frontend"},
+    {"part_id": "backend", "project_type_id": "backend", "display_name": "Spring Boot Backend"},
+    {"part_id": "ai", "project_type_id": "backend", "display_name": "AI Service Backend"},
+    {"part_id": "agent", "project_type_id": "cli", "display_name": "Python Agent CLI"}
+  ],
+  "outputs_generated": [
+    "project-scan-report.json",
+    "index.md",
+    "project-overview.md",
+    "architecture-comprehensive.md",
+    "source-tree-analysis.md",
+    "integration-architecture.md",
+    "development-guide.md"
+  ],
+  "resume_instructions": "Starting from step 2"
+}

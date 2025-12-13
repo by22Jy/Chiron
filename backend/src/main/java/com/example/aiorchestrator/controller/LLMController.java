@@ -23,6 +23,9 @@ public class LLMController {
     @Autowired
     private com.example.aiorchestrator.service.AiOrchestratorService aiOrchestratorService;
 
+    @Autowired
+    private com.example.aiorchestrator.util.DataFormatStandardizer dataStandardizer;
+
     /**
      * 手势意图分析
      */
@@ -30,12 +33,27 @@ public class LLMController {
     public ResponseEntity<Map<String, Object>> analyzeGesture(
             @RequestBody Map<String, Object> request) {
 
-        String prompt = (String) request.get("prompt");
-        String gestureCode = (String) request.get("gesture_code");
-        Double confidence = (Double) request.get("confidence");
-        String context = (String) request.get("context");
-
         try {
+            // 验证请求格式
+            Map<String, Object> validation = dataStandardizer.validateRequestFormat(request);
+            if (!(Boolean) validation.get("valid")) {
+                Map<String, Object> errorResponse = dataStandardizer.standardizeErrorResponse(
+                    new IllegalArgumentException("请求格式无效: " + validation.get("errors")),
+                    "请求格式验证失败"
+                );
+                return ResponseEntity.status(400).body(errorResponse);
+            }
+
+            String prompt = (String) request.get("prompt");
+            String gestureCode = (String) request.get("gesture_code");
+            Double confidence = (Double) request.get("confidence");
+            String context = (String) request.get("context");
+
+            // 标准化枚举值
+            if (gestureCode != null) {
+                gestureCode = dataStandardizer.standardizeEnumValue(gestureCode, "gesture_name");
+            }
+
             // 构建完整的分析提示词
             String fullPrompt = buildGestureAnalysisPrompt(prompt, gestureCode, confidence, context);
 
@@ -45,21 +63,29 @@ public class LLMController {
             // 解析LLM响应
             Map<String, Object> response = parseGestureAnalysisResponse(llmResponse);
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("response", llmResponse);
-            result.put("analysis", response);
-            result.put("gesture_code", gestureCode);
-            result.put("timestamp", System.currentTimeMillis());
+            // 构建旧格式响应（保持向后兼容）
+            Map<String, Object> oldFormatResponse = new HashMap<>();
+            oldFormatResponse.put("success", true);
+            oldFormatResponse.put("response", llmResponse);
+            oldFormatResponse.put("analysis", response);
+            oldFormatResponse.put("gesture_code", gestureCode);
+            oldFormatResponse.put("timestamp", System.currentTimeMillis());
 
-            return ResponseEntity.ok(result);
+            // 标准化为新格式
+            Map<String, Object> standardResponse = dataStandardizer.standardizeResponse(
+                oldFormatResponse,
+                "success",
+                "手势分析完成"
+            );
+
+            return ResponseEntity.ok(standardResponse);
 
         } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", e.getMessage());
-            errorResponse.put("response", "手势分析暂时不可用，请稍后重试");
-
+            logger.error("手势分析失败", e);
+            Map<String, Object> errorResponse = dataStandardizer.standardizeErrorResponse(
+                e,
+                "手势分析暂时不可用，请稍后重试"
+            );
             return ResponseEntity.status(500).body(errorResponse);
         }
     }
@@ -71,32 +97,50 @@ public class LLMController {
     public ResponseEntity<Map<String, Object>> analyzeVoiceCommand(
             @RequestBody Map<String, Object> request) {
 
-        String command = (String) request.get("command");
-        String context = (String) request.get("context");
-
         try {
+            // 验证请求格式
+            Map<String, Object> validation = dataStandardizer.validateRequestFormat(request);
+            if (!(Boolean) validation.get("valid")) {
+                Map<String, Object> errorResponse = dataStandardizer.standardizeErrorResponse(
+                    new IllegalArgumentException("请求格式无效: " + validation.get("errors")),
+                    "请求格式验证失败"
+                );
+                return ResponseEntity.status(400).body(errorResponse);
+            }
+
+            String command = (String) request.get("command");
+            String context = (String) request.get("context");
+
             logger.info("收到语音命令: {}, 上下文: {}", command, context);
 
             // 使用智能编排服务，包含MCP工具支持
             List<String> requiredTools = List.of("news", "weather", "deepseek_llm", "task_management");
             String response = aiOrchestratorService.orchestrateWithMCP(command, requiredTools);
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("response", response);
-            result.put("command", command);
-            result.put("timestamp", System.currentTimeMillis());
+            // 构建旧格式响应（保持向后兼容）
+            Map<String, Object> oldFormatResponse = new HashMap<>();
+            oldFormatResponse.put("success", true);
+            oldFormatResponse.put("response", response);
+            oldFormatResponse.put("command", command);
+            oldFormatResponse.put("timestamp", System.currentTimeMillis());
+
+            // 标准化为新格式
+            Map<String, Object> standardResponse = dataStandardizer.standardizeResponse(
+                oldFormatResponse,
+                "success",
+                "语音命令分析完成"
+            );
 
             logger.info("语音命令分析完成，响应: {}", response);
 
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok(standardResponse);
 
         } catch (Exception e) {
             logger.error("语音命令分析失败", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", e.getMessage());
-            errorResponse.put("response", "语音命令分析失败，请稍后重试");
+            Map<String, Object> errorResponse = dataStandardizer.standardizeErrorResponse(
+                e,
+                "语音命令分析失败，请稍后重试"
+            );
 
             return ResponseEntity.status(500).body(errorResponse);
         }
@@ -155,8 +199,36 @@ public class LLMController {
 
         logger.info("收到智能编排请求: {}", request);
 
-        String message = (String) request.get("message");
-        String context = (String) request.get("context");
+        String message;
+        String context;
+
+        // 处理新的结构化用户意图数据
+        if (request.containsKey("user_intent")) {
+            Map<String, Object> userIntent = (Map<String, Object>) request.get("user_intent");
+            message = (String) userIntent.get("user_input");
+            context = (String) userIntent.get("context");
+
+            // 添加系统信息到上下文
+            Map<String, Object> systemInfo = (Map<String, Object>) userIntent.get("system_info");
+            if (systemInfo != null) {
+                context += String.format(" [系统信息: CPU=%s, 内存=%.1fGB, 平台=%s]",
+                    systemInfo.get("cpu_count"),
+                    ((Number) systemInfo.get("memory_total")).longValue() / (1024.0 * 1024 * 1024),
+                    systemInfo.get("platform"));
+            }
+
+            // 添加已安装应用信息
+            List<String> installedApps = (List<String>) userIntent.get("installed_apps");
+            if (installedApps != null && !installedApps.isEmpty()) {
+                context += " [已安装应用: " + String.join(", ", installedApps.subList(0, Math.min(10, installedApps.size()))) + "]";
+            }
+
+            logger.info("解析用户意图: {}, 增强上下文: {}", message, context);
+        } else {
+            // 兼容旧的message格式
+            message = (String) request.get("message");
+            context = (String) request.get("context");
+        }
 
         try {
             // 获取可用的MCP工具
@@ -165,7 +237,7 @@ public class LLMController {
 
             logger.info("可用MCP工具: {}", availableTools);
 
-            // 构建智能编排提示词，包含MCP工具信息
+            // 构建智能编排提示词，包含MCP工具信息和电脑控制指令
             String intelligentPrompt = buildIntelligentPrompt(message, context, availableTools);
             logger.info("智能编排提示词: {}", intelligentPrompt);
 
@@ -212,32 +284,53 @@ public class LLMController {
     private String buildIntelligentPrompt(String message, String context, List<String> availableTools) {
         StringBuilder prompt = new StringBuilder();
 
-        prompt.append("你是一个专业的AI智能助手，能够理解用户意图并使用各种工具来完成任务。\n\n");
+        // 系统指令 - 电脑控制智能分析
+        prompt.append("你是一个专业的电脑控制AI智能助手，能够理解自然语言命令并生成精确的电脑操作指令。\n\n");
+
+        prompt.append("你的任务是分析用户的自然语言请求，并返回JSON格式的电脑操作指令。\n\n");
+
+        prompt.append("支持的 action_type 类型:\n");
+        prompt.append("- open_app: 打开应用程序\n");
+        prompt.append("- system_control: 系统控制（音量、亮度、关机等）\n");
+        prompt.append("- file_operation: 文件操作（打开文件夹、文件管理等）\n");
+        prompt.append("- web_search: 网页搜索\n");
+        prompt.append("- custom_command: 自定义命令\n\n");
+
+        prompt.append("响应格式要求:\n");
+        prompt.append("必须返回严格的JSON格式，包含以下字段：\n");
+        prompt.append("{\n");
+        prompt.append("  \"action_type\": \"操作类型\",\n");
+        prompt.append("  \"command\": \"具体要执行的命令\",\n");
+        prompt.append("  \"description\": \"操作描述\",\n");
+        prompt.append("  \"confidence\": 0.95,\n");
+        prompt.append("  \"safety_level\": \"safe\",\n");
+        prompt.append("  \"alternatives\": [\"备选方案1\", \"备选方案2\"]\n");
+        prompt.append("}\n\n");
+
+        prompt.append("安全级别说明:\n");
+        prompt.append("- safe: 安全操作，可以直接执行\n");
+        prompt.append("- warning: 需要注意的操作，建议确认\n");
+        prompt.append("- dangerous: 危险操作，必须用户确认\n\n");
 
         prompt.append("用户请求: ").append(message).append("\n");
         if (context != null && !context.isEmpty()) {
             prompt.append("上下文: ").append(context).append("\n");
         }
 
-        prompt.append("\n可用工具:\n");
+        prompt.append("\n可用MCP工具:\n");
         for (String tool : availableTools) {
             prompt.append("- ").append(tool).append("\n");
         }
 
-        prompt.append("\n工具说明:\n");
-        prompt.append("- news: 获取最新新闻资讯\n");
-        prompt.append("- weather: 查询天气信息\n");
-        prompt.append("- email: 发送邮件\n");
-        prompt.append("- computer_control: 控制电脑操作\n");
-        prompt.append("- filesystem: 文件系统操作\n");
-        prompt.append("- system_health: 系统健康检查\n");
-        prompt.append("- voice_control: 语音控制\n");
-        prompt.append("- social_media: 社交媒体操作\n");
-        prompt.append("- deepseek_llm: 深度思考和推理\n");
+        prompt.append("\n分析说明:\n");
+        prompt.append("1. 仔细分析用户意图，选择最合适的 action_type\n");
+        prompt.append("2. 生成具体可执行的 command\n");
+        prompt.append("3. 提供清晰的中文 description\n");
+        prompt.append("4. 设置合理的 confidence (0.0-1.0)\n");
+        prompt.append("5. 评估 safety_level\n");
+        prompt.append("6. 如有其他可行方案，提供 alternatives\n\n");
 
-        prompt.append("\n请分析用户的请求，如果需要使用工具，请明确说明使用哪个工具以及具体参数。");
-        prompt.append("如果不需要工具，请直接回答用户问题。");
-        prompt.append("请用中文回答，内容要详细、有用、有条理。");
+        prompt.append("请返回JSON格式的电脑操作指令:");
 
         return prompt.toString();
     }

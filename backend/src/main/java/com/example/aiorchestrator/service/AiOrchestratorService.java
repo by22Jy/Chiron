@@ -278,6 +278,15 @@ public class AiOrchestratorService {
                 sb.append("        \"format\": \"结构化摘要\"\n");
                 sb.append("      }\n");
                 sb.append("    },\n");
+            } else if ("email".equals(tool)) {
+                sb.append("    \"").append(tool).append("\": {\n");
+                sb.append("      \"action\": \"发送邮件\",\n");
+                sb.append("      \"parameters\": {\n");
+                sb.append("        \"to\": \"收件人邮箱地址\",\n");
+                sb.append("        \"subject\": \"邮件主题\",\n");
+                sb.append("        \"content\": \"邮件正文内容\"\n");
+                sb.append("      }\n");
+                sb.append("    },\n");
             } else {
                 sb.append("    \"").append(tool).append("\": {\n");
                 sb.append("      \"action\": \"执行相关操作\",\n");
@@ -300,18 +309,171 @@ public class AiOrchestratorService {
         try {
             logger.info("解析工具参数，工具名: {}, 分析结果: {}", toolName, analysisResult);
 
-            // 尝试解析JSON格式
+            // 尝试从分析结果中智能提取参数
+            Map<String, Object> params = new HashMap<>();
+
+            if ("email".equals(toolName)) {
+                // 智于用户语音命令智能提取邮件参数
+                return extractEmailParameters(analysisResult);
+            } else if ("news".equals(toolName)) {
+                params.put("action", "get_news");
+                params.put("count", 5);
+                params.put("category", "general");
+                params.put("language", "zh-CN");
+            } else if ("weather".equals(toolName)) {
+                params.put("action", "get_weather");
+                // 尝试从分析结果中提取城市名
+                if (analysisResult.toLowerCase().contains("北京")) {
+                    params.put("location", "Beijing");
+                } else if (analysisResult.toLowerCase().contains("上海")) {
+                    params.put("location", "Shanghai");
+                } else {
+                    params.put("location", "Beijing"); // 默认城市
+                }
+                params.put("units", "metric");
+                params.put("language", "zh_cn");
+            } else if ("deepseek_llm".equals(toolName)) {
+                params.put("action", "analyze_and_integrate");
+                params.put("task", "整合工具结果并生成用户友好的回复");
+                params.put("format", "structured_summary");
+            } else {
+                // 尝试JSON解析作为后备方案
+                return extractParametersFromJson(analysisResult, toolName);
+            }
+
+            logger.info("解析出的工具参数: {}", params);
+            return params;
+
+        } catch (Exception e) {
+            logger.warn("解析工具参数失败，使用默认参数: {}", e.getMessage(), e);
+        }
+
+        // 默认参数 - 仅作为最后的后备方案
+        Map<String, Object> defaultParams = new HashMap<>();
+        defaultParams.put("action", "execute");
+        defaultParams.put("analysis", analysisResult);
+
+        logger.info("使用默认参数: {}", defaultParams);
+        return defaultParams;
+    }
+
+    /**
+     * 智能提取邮件参数
+     */
+    private Map<String, Object> extractEmailParameters(String analysisResult) {
+        Map<String, Object> params = new HashMap<>();
+
+        // 使用正则表达式从文本中提取邮件信息
+        String lowerResult = analysisResult.toLowerCase();
+
+        // 提取收件人邮箱
+        String toEmail = extractEmailRecipient(analysisResult, lowerResult);
+        if (toEmail != null) {
+            params.put("to", toEmail);
+        }
+
+        // 提取邮件主题
+        String subject = extractEmailSubject(analysisResult, lowerResult);
+        if (subject != null) {
+            params.put("subject", subject);
+        }
+
+        // 提取邮件内容
+        String content = extractEmailContent(analysisResult, lowerResult);
+        if (content != null) {
+            params.put("content", content);
+        }
+
+        // 如果没有提取到足够的信息，使用智能默认值
+        if (params.isEmpty() || !params.containsKey("to")) {
+            logger.warn("邮件参数提取不完整，使用默认配置");
+            params.put("to", "default@example.com");
+            params.put("subject", "来自YOLO-LLM的邮件");
+            params.put("content", analysisResult);
+        }
+
+        return params;
+    }
+
+    /**
+     * 从文本中提取收件人邮箱
+     */
+    private String extractEmailRecipient(String originalResult, String lowerResult) {
+        // 匹配邮箱格式的正则表达式
+        java.util.regex.Pattern emailPattern = java.util.regex.Pattern.compile(
+            "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"
+        );
+
+        java.util.regex.Matcher matcher = emailPattern.matcher(originalResult);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+
+        return null;
+    }
+
+    /**
+     * 从文本中提取邮件主题
+     */
+    private String extractEmailSubject(String originalResult, String lowerResult) {
+        // 匹配常见的关键词和模式
+        String[] subjectKeywords = {
+            "主题", "subject", "关于", "regarding", "标题", "title"
+        };
+
+        for (String keyword : subjectKeywords) {
+            int index = originalResult.indexOf(keyword);
+            if (index != -1) {
+                // 查找关键词后面的内容直到标点符号
+                int start = index + keyword.length();
+                int end = originalResult.length();
+
+                // 查找下一个句号、问号或其他分隔符
+                for (int i = start; i < end; i++) {
+                    char c = originalResult.charAt(i);
+                    if (c == '。' || c == '？' || c == '?' || c == '\n' || c == '\r') {
+                        end = i;
+                        break;
+                    }
+                }
+
+                String subject = originalResult.substring(start, end).trim();
+                if (!subject.isEmpty() && subject.length() > 1) {
+                    return subject;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 从文本中提取邮件内容
+     */
+    private String extractEmailContent(String originalResult, String lowerResult) {
+        // 如果没有找到主题或收件人，将整个分析结果作为内容
+        if (originalResult.length() > 20) {
+            // 简化处理：如果分析结果不是太短，假设主要内容在其中
+            return originalResult;
+        }
+
+        return null;
+    }
+
+    /**
+     * 从JSON格式分析结果中提取参数（后备方案）
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractParametersFromJson(String analysisResult, String toolName) {
+        try {
             if (analysisResult.contains("{") && analysisResult.contains("}")) {
-                // 简单的JSON解析 - 查找工具开始位置
                 int toolStart = analysisResult.indexOf("\"" + toolName + "\"");
                 if (toolStart != -1) {
-                    // 查找参数对象开始
                     int paramsStart = analysisResult.indexOf("{", toolStart);
                     if (paramsStart != -1) {
                         int braceCount = 0;
                         int paramsEnd = paramsStart;
 
-                        // 找到匹配的结束括号
                         for (int i = paramsStart; i < analysisResult.length(); i++) {
                             if (analysisResult.charAt(i) == '{') {
                                 braceCount++;
@@ -325,53 +487,26 @@ public class AiOrchestratorService {
                         }
 
                         String paramsJson = analysisResult.substring(paramsStart, paramsEnd);
+                        logger.info("JSON参数: {}", paramsJson);
 
-                        // 解析参数为Map
+                        // 简单解析 - 这里可以进一步优化为完整的JSON解析
                         Map<String, Object> params = new HashMap<>();
+                        params.put("action", "execute");
+                        params.put("analysis", analysisResult);
 
-                        // 简化的参数解析
-                        if ("news".equals(toolName)) {
-                            params.put("action", "get_news");
-                            params.put("count", 5);
-                            params.put("category", "general");
-                            params.put("language", "zh-CN");
-                        } else if ("weather".equals(toolName)) {
-                            params.put("action", "get_weather");
-                            // 尝试从分析结果中提取城市名
-                            if (analysisResult.toLowerCase().contains("北京")) {
-                                params.put("location", "Beijing");
-                            } else if (analysisResult.toLowerCase().contains("上海")) {
-                                params.put("location", "Shanghai");
-                            } else {
-                                params.put("location", "Beijing"); // 默认城市
-                            }
-                            params.put("units", "metric");
-                            params.put("language", "zh_cn");
-                        } else if ("deepseek_llm".equals(toolName)) {
-                            params.put("action", "analyze_and_integrate");
-                            params.put("task", "整合工具结果并生成用户友好的回复");
-                            params.put("format", "structured_summary");
-                        } else {
-                            params.put("action", "execute");
-                            params.put("analysis", analysisResult);
-                        }
-
-                        logger.info("解析出的工具参数: {}", params);
                         return params;
                     }
                 }
             }
         } catch (Exception e) {
-            logger.warn("解析工具参数失败，使用默认参数: {}", e.getMessage(), e);
+            logger.warn("JSON参数解析失败: {}", e.getMessage());
         }
 
-        // 默认参数
-        Map<String, Object> defaultParams = new HashMap<>();
-        defaultParams.put("action", "execute");
-        defaultParams.put("analysis", analysisResult);
+        Map<String, Object> fallbackParams = new HashMap<>();
+        fallbackParams.put("action", "execute");
+        fallbackParams.put("analysis", analysisResult);
 
-        logger.info("使用默认参数: {}", defaultParams);
-        return defaultParams;
+        return fallbackParams;
     }
 
     /**

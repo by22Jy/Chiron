@@ -11,6 +11,27 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
   type-aliases-package: com.example.aiorchestrator.domain
+
+# 标准化配置 - AC5: 配置同步机制
+# 与agent/config.yaml保持一致的配置标准
+enumerations:
+  status-values: success,error,processing  # 小写状态枚举
+  action-types: hotkey,mouse,click,scroll,text,window,system  # 小写动作类型
+  gesture-names: POINT_UP,THUMBS_UP,VICTORY,OK_SIGN,CLOSED_FIST,V_GESTURE,ROCK_SIGN  # 大写下划线手势名
+
+data-format:
+  timestamp-format: "ISO_8601"
+  response-structure:
+    status: "success|error"
+    data: "object"
+    message: "string"
+    timestamp: "ISO_8601"
+
+# 配置同步设置
+sync:
+  enabled: true
+  validation: true
+  hot-reload: true
 ai:
   yolo:
     url-detect-file: http://127.0.0.1:8000/detect/file
